@@ -13,7 +13,7 @@ spec:
     metadata: { labels: { app: api-factory } }
     spec:
       imagePullSecrets: [{ name: ghcr-pull }]
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }   # distroless 的 nonroot
       containers:
         - name: api
           image: ghcr.io/mierai/api-factory
