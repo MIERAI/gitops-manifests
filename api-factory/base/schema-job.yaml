@@ -1,0 +1,26 @@
+# 建表(幂等): API 的镜像同一次构建出来的 api-factory-schema(表结构 = 应用仓库的 db/schema)。每次同步都执行
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: schema
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets: [{ name: ghcr-pull }]
+      containers:
+        - name: schema
+          image: ghcr.io/mierai/api-factory-schema
+          env:
+            - { name: PGHOST, value: postgres }
+            - { name: PGUSER, value: factory }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgres, key: POSTGRES_PASSWORD } }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }

@@ -1,0 +1,27 @@
+# 部署后的检查(只读): 健康检查 + 没有令牌时 401。失败 → 同步失败(Argo CD 上看得到)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: smoke
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 100 }
+      containers:
+        - name: smoke
+          image: curlimages/curl:8.11.1
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              curl -fsS http://api-factory:8080/healthz
+              code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' http://api-factory:8080/factory.jobs.v1.JobService/ListJobs)
+              echo "unauthenticated → $code"; test "$code" = 401
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }

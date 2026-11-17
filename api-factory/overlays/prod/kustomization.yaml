@@ -1,0 +1,19 @@
+# prod: promote workflow 开 PR(dev 的版本 → prod),人批准后合并
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: api-factory-prod
+resources: [../../base]
+replicas:
+  - name: api-factory
+    count: 2
+patches:
+  - target: { kind: Service, name: api-factory }
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/nodePort
+        value: 30081
+images:
+  - name: ghcr.io/mierai/api-factory
+    newTag: bootstrap
+  - name: ghcr.io/mierai/api-factory-schema
+    newTag: bootstrap

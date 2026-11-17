@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-factory
+  annotations: { argocd.argoproj.io/sync-wave: "2" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api-factory } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # 新版本健康之前旧版本继续服务
+  template:
+    metadata: { labels: { app: api-factory } }
+    spec:
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: api
+          image: ghcr.io/mierai/api-factory
+          ports: [{ containerPort: 8080, name: http }]
+          env:
+            - { name: AUTH_MODE, value: token }
+          envFrom:
+            - secretRef: { name: api-factory }   # DATABASE_URL / FACTORY_SHARDS / PAGE_TOKEN_KEY / AUTH_TOKEN_SHA256
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }

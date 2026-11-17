@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-factory-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: api-factory/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: api-factory-prod
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

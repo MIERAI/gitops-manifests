@@ -1,0 +1,32 @@
+# 升级: dev 正在用的版本 → prod。开 PR,人批准后合并 → Argo CD 同步 prod
+name: promote
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 应用
+        type: choice
+        options: [api-factory, sample-app]
+      from: { description: 从, default: dev }
+      to: { description: 到, default: prod }
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: 更新 tag
+        id: tags
+        run: echo "tags=$(scripts/promote.sh '${{ inputs.app }}' '${{ inputs.from }}' '${{ inputs.to }}')" >> "$GITHUB_OUTPUT"
+      - name: 开 PR
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if git diff --quiet; then echo "已经是同一个版本"; exit 0; fi
+          branch="promote/${{ inputs.app }}-${{ inputs.to }}-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"; git commit -am "promote ${{ inputs.app }} ${{ inputs.from }} → ${{ inputs.to }}: ${{ steps.tags.outputs.tags }}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" \
+            --body "dev で動いている版を ${{ inputs.to }} へ: \`${{ steps.tags.outputs.tags }}\`。マージすると Argo CD が同期します。"

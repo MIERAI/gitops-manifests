@@ -1,0 +1,44 @@
+# 本地环境用的 Postgres(GKE 上是 Cloud SQL,在 infrastructure-live 管)。密码在 Secret postgres(scripts/secrets.sh 生成)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: factory }
+            - { name: POSTGRES_DB, value: factory }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres, key: POSTGRES_PASSWORD } }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "factory"] }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 1Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432 }]
