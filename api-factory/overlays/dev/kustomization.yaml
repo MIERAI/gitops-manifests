@@ -5,6 +5,6 @@ namespace: api-factory-dev
 resources: [../../base]
 images:
   - name: ghcr.io/mierai/api-factory
-    newTag: bootstrap
+    newTag: 05c2ba2
   - name: ghcr.io/mierai/api-factory-schema
-    newTag: bootstrap
+    newTag: 05c2ba2
