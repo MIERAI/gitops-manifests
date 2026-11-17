@@ -20,6 +20,10 @@ jobs:
       - name: 更新 tag
         id: tags
         run: echo "tags=$(scripts/promote.sh '${{ inputs.app }}' '${{ inputs.from }}' '${{ inputs.to }}')" >> "$GITHUB_OUTPUT"
+      - name: 校验(用 GITHUB_TOKEN 开的 PR 不会触发 validate,这里先跑)
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
+          scripts/validate.sh
       - name: 开 PR
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
