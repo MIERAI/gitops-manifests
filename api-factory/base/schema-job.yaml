@@ -9,6 +9,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   backoffLimit: 6
+  activeDeadlineSeconds: 300   # 拉不到镜像等情况: 5 分钟后失败(不然同步会一直等这个钩子)
   template:
     spec:
       restartPolicy: OnFailure
