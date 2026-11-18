@@ -22,3 +22,8 @@ patches:
       - { op: test, path: /spec/template/spec/containers/0/args/22, value: --enablePolicyException=false }
       - { op: replace, path: /spec/template/spec/containers/0/args/22, value: --enablePolicyException=true }
       - { op: add, path: /spec/template/spec/containers/0/args/-, value: --exceptionNamespace=kyverno }
+  # The policies.kyverno.io CRDs ship with an empty `labels: {}`; the API server drops empty maps, so Argo CD
+  # reported them OutOfSync forever. A real label makes desired and live state identical.
+  - target: { kind: CustomResourceDefinition, name: ".*\\.policies\\.kyverno\\.io" }
+    patch: |-
+      - { op: add, path: /metadata/labels/app.kubernetes.io~1part-of, value: kyverno }
