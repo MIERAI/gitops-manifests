@@ -11,6 +11,9 @@ spec:
   instances: 1                  # prod: 2 (primary + streaming replica)
   imageName: ghcr.io/cloudnative-pg/postgresql:16.10
   storage: { size: 1Gi }
+  # Smart shutdown waits for clients to disconnect, but the API's connection pool never does: with the default (180s)
+  # every primary pod deletion (node drain, upgrade) blocked failover: healthy again only after 197s (measured on prod).
+  smartShutdownTimeout: 10
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { memory: 512Mi }
