@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: offsite-backup }
+spec:
+  schedule: "17 * * * *"          # hourly: off-site RPO ≤ 1 h (local WAL archiving: 5 min)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3000
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: sync
+              image: rclone/rclone:1.75.2
+              command: [/bin/sh, /config/sync.sh]
+              env:
+                - { name: S3_ENDPOINT, value: "http://seaweedfs.object-storage:8333" }
+                - { name: PHONE_HOST, value: "100.80.225.15" }   # Tailscale (the phone leaves home with its owner)
+                - { name: PHONE_PORT, value: "8022" }
+              envFrom: [{ secretRef: { name: offsite-backup } }]
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              volumeMounts:
+                - { name: config, mountPath: /config, readOnly: true }
+                - { name: keys, mountPath: /keys, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: config, configMap: { name: offsite-backup } }
+            - name: keys
+              secret: { secretName: offsite-backup, defaultMode: 0440, items: [{ key: ssh_private_key, path: ssh_private_key }] }
+            - { name: tmp, emptyDir: {} }

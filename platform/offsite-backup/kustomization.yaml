@@ -1,0 +1,13 @@
+# Off-site copy of the backups: the cluster's object store (bucket cnpg: base backups + WAL of every database) →
+# the always-plugged-in Android phone (Termux sftp, over Tailscale), encrypted by rclone crypt before it leaves the
+# cluster (file contents and names: the phone only stores ciphertext). Laptop cluster only (clusters/laptop).
+# Secret offsite-backup: infrastructure-live tofu/modules/platform (secrets/laptop.sops.yaml: sftp key, crypt
+# password + salt; WITHOUT them the copy cannot be decrypted: back up the age key). Phone side: infrastructure-live
+# ansible role offsite_target (sftp-only key).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: backup-offsite
+resources: [cronjob.yaml, rules.yaml]
+configMapGenerator:
+  - name: offsite-backup
+    files: [sync.sh, known_hosts]

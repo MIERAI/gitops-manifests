@@ -1,5 +1,6 @@
 # The laptop cluster (k3s on a Linux laptop, always on): every Application of apps/, plus
 # - object storage outside the cluster (host SeaweedFS on its own disk): backups survive a cluster rebuild
+# - hourly encrypted off-site copy of the backups to the phone (platform/offsite-backup)
 # - Alertmanager routes our alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
 #   inside one process
@@ -8,6 +9,7 @@ kind: Kustomization
 resources:
   - ../../apps
   - platform-alert-speaker.yaml
+  - platform-offsite-backup.yaml
 patches:
   - target: { kind: Application, name: platform-object-storage }
     patch: |-

@@ -28,6 +28,7 @@ PHRASES = {
     "PostgresWalArchivingStale": "数据库日志十五分钟没有归档",
     "PostgresReplicationLag": "数据库备库延迟",
     "DailyRestoreCheckFailed": "每日恢复验证失败",
+    "OffsiteBackupStale": "手机上的异地备份三个小时没有成功",
 }
 APPS = {"api-factory": "API 工厂", "sample-app": "样例应用"}
 ENVS = {"dev": "开发环境", "prod": "生产环境"}
