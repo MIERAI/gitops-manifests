@@ -12,7 +12,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: sample-app-prod
+  # Argo Rollouts adds rollouts-pod-template-hash to the stable/canary Service selectors during a rollout.
+  # Without this, self-heal reverts it: the canary Service then also selects stable pods and the analysis
+  # can pass by hitting healthy stable pods (seen in the fault injection demo).
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jqPathExpressions: ['.spec.selector["rollouts-pod-template-hash"]']
   syncPolicy:
     automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true]
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
     retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
