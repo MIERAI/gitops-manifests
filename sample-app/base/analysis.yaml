@@ -1,27 +1,35 @@
-# The canary must answer /hello with a message, 3 times in a row (a failure or 2 consecutive errors abort the rollout).
-# The analysis runs in the Argo Rollouts controller (another namespace): use the fully qualified service name.
-# Connection: close — the controller's HTTP client keeps connections alive; through the ClusterIP NAT an old connection
-# stays pinned (conntrack) to the pod it was opened to, even after Rollouts switches the canary Service selector.
-# Without it the analysis kept checking the *stable* pod and passed a faulty canary (fault injection demo, 3 runs).
+# Canary analysis on real (synthetic) traffic: the canary pods' /hello error ratio and p95 latency, from Prometheus.
+# Any failure aborts the rollout. (Replaces the earlier HTTP probe, which only checked one request at a time.)
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
   name: hello-ok
 spec:
   args:
-    - name: service
     - name: namespace
+    - name: canary-hash
   metrics:
-    - name: hello
-      count: 3
-      interval: 5s
+    - name: error-ratio
+      interval: 15s
+      count: 4
       failureLimit: 0
       consecutiveErrorLimit: 2
-      successCondition: result != ""
+      # no data yet (no request reached the canary) → NaN → treated as an error (counts toward consecutiveErrorLimit)
+      successCondition: len(result) > 0 && result[0] < 0.01
       provider:
-        web:
-          url: "http://{{args.service}}.{{args.namespace}}.svc.cluster.local:8080/hello?name=canary"
-          jsonPath: "{$.message}"
-          headers:
-            - { key: Connection, value: close }
-          timeoutSeconds: 5
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello",code=~"5.."}[1m]))
+              / sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello"}[1m]))
+    - name: p95-latency
+      interval: 15s
+      count: 4
+      failureLimit: 0
+      consecutiveErrorLimit: 2
+      successCondition: len(result) > 0 && result[0] < 0.3
+      provider:
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello"}[1m])))

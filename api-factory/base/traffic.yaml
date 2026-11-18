@@ -1,0 +1,34 @@
+# Synthetic traffic (~2 RPC/s over a few APIs, with the API token): feeds the metrics and the alerts on a cluster without users.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetic-traffic
+  annotations: { argocd.argoproj.io/sync-wave: "3" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: synthetic-traffic } }
+  template:
+    metadata: { labels: { app: synthetic-traffic } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 100, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: curl
+          image: curlimages/curl:8.11.1
+          env:
+            - name: TOKEN
+              valueFrom: { secretKeyRef: { name: api-token, key: token } }   # created by infrastructure-live/scripts/secrets.sh
+          command: ["sh", "-c"]
+          args:
+            - |
+              call() { curl -s -o /dev/null --max-time 3 -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d "$2" "http://api-factory:8080/$1"; }
+              while true; do
+                call factory.jobs.v1.JobService/ListJobs '{"pageSize":3}'
+                call factory.sales.v1.SaleService/ListEffectivePriceChanges '{"storeCode":1,"procDate":"2026-11-20"}'
+                call factory.sales.v1.SaleService/ListCurrentPrices '{"storeCode":1,"asOf":"2026-11-20"}'
+                call factory.catalog.v1.CatalogService/GetProductLabel '{"productCode":"100","labelCode":"A"}'
+                sleep 2
+              done
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }

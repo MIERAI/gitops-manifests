@@ -1,5 +1,5 @@
 # Canary release with automatic abort:
-#   50% → pause 20s → analysis (3 checks of /hello on the canary pods) → 100%.
+#   50% → pause 30s → analysis (canary pods' error ratio and p95 from Prometheus, 4 checks) → 100%.
 #   If the analysis fails, the rollout aborts and the stable version keeps serving.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
@@ -11,16 +11,16 @@ spec:
   selector: { matchLabels: { app: sample-app } }
   strategy:
     canary:
-      canaryService: sample-app-canary   # selects only the canary pods (used by the analysis)
-      stableService: sample-app          # selects only the stable pods while a rollout is in progress
+      # Replica-weighted canary: the Service selects all pods, so the canary gets its share of the (synthetic) traffic
+      # and the analysis judges it on real request metrics.
       steps:
         - setWeight: 50
-        - pause: { duration: 20s }
+        - pause: { duration: 30s }        # let Prometheus collect a few scrapes of the canary
         - analysis:
             templates: [{ templateName: hello-ok }]
             args:
-              - { name: service, value: sample-app-canary }
               - { name: namespace, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+              - { name: canary-hash, valueFrom: { podTemplateHashValue: Latest } }
         - setWeight: 100
   template:
     metadata: { labels: { app: sample-app } }

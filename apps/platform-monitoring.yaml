@@ -1,0 +1,53 @@
+# Prometheus + Alertmanager + Grafana (kube-prometheus-stack, pinned chart).
+# Apps bring their own PodMonitor / PrometheusRule / dashboard ConfigMap; this only runs the stack.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-monitoring
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "-1" }
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.17.0
+    helm:
+      valuesObject:
+        fullnameOverride: kps
+        # kind: the control-plane components are not reachable from inside the cluster → no scraping, no false alerts
+        kubeEtcd: { enabled: false }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeProxy: { enabled: false }
+        defaultRules:
+          rules: { etcd: false, kubeControllerManager: false, kubeSchedulerAlerting: false, kubeSchedulerRecording: false, kubeProxy: false }
+        prometheus:
+          prometheusSpec:
+            # pick up every PodMonitor / ServiceMonitor / PrometheusRule in the cluster (apps ship their own)
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            retention: 3d
+            scrapeInterval: 15s
+            evaluationInterval: 15s
+            resources: { requests: { cpu: 100m, memory: 400Mi }, limits: { memory: 1Gi } }
+        alertmanager:
+          alertmanagerSpec:
+            resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } }
+        grafana:
+          admin: { existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password }   # created by infrastructure-live/scripts/secrets.sh
+          sidecar:
+            dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
+          resources: { requests: { cpu: 20m, memory: 128Mi }, limits: { memory: 256Mi } }
+        kube-state-metrics:
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } }
+        prometheus-node-exporter:
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { memory: 64Mi } }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

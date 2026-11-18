@@ -1,0 +1,60 @@
+# Metrics, alerts and a dashboard for api-factory.
+# Server-side errors only (internal / unavailable / unknown / deadline_exceeded / data_loss): client errors such as
+# invalid_argument, not_found or unauthenticated are the API working as specified.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: api-factory
+spec:
+  selector: { matchLabels: { app: api-factory } }
+  podMetricsEndpoints:
+    - { port: http, path: /metrics, interval: 10s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: api-factory
+spec:
+  groups:
+    - name: api-factory.slo
+      rules:
+        - record: api_factory:server_errors:ratio_rate5m
+          expr: |
+            sum by (namespace) (rate(rpc_requests_total{code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
+              / sum by (namespace) (rate(rpc_requests_total[5m]))
+        - alert: ApiFactoryServerErrors
+          expr: api_factory:server_errors:ratio_rate5m > 0.01
+          for: 5m
+          labels: { severity: page }
+          annotations:
+            summary: "api-factory {{ $labels.namespace }}: more than 1% of RPCs fail on the server side"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#error-budget-burn
+        - alert: ApiFactoryHighLatency
+          expr: |
+            histogram_quantile(0.95, sum by (namespace, le) (rate(rpc_request_duration_seconds_bucket[5m]))) > 0.5
+          for: 10m
+          labels: { severity: ticket }
+          annotations:
+            summary: "api-factory {{ $labels.namespace }}: p95 RPC latency above 500ms"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#latency
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-factory-dashboard
+  labels: { grafana_dashboard: "1" }
+data:
+  api-factory.json: |
+    {
+      "title": "api-factory", "uid": "api-factory", "schemaVersion": 39, "refresh": "10s", "time": { "from": "now-30m", "to": "now" },
+      "templating": { "list": [ { "name": "namespace", "type": "query", "datasource": "Prometheus",
+        "query": "label_values(rpc_requests_total, namespace)", "refresh": 2 } ] },
+      "panels": [
+        { "type": "timeseries", "title": "RPC / s by procedure", "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [ { "expr": "sum by (procedure) (rate(rpc_requests_total{namespace=\"$namespace\"}[1m]))", "legendFormat": "{{procedure}}" } ] },
+        { "type": "timeseries", "title": "RPC / s by code", "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [ { "expr": "sum by (code) (rate(rpc_requests_total{namespace=\"$namespace\"}[1m]))", "legendFormat": "{{code}}" } ] },
+        { "type": "timeseries", "title": "p95 latency by procedure (s)", "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "targets": [ { "expr": "histogram_quantile(0.95, sum by (procedure, le) (rate(rpc_request_duration_seconds_bucket{namespace=\"$namespace\"}[1m])))", "legendFormat": "{{procedure}}" } ] }
+      ]
+    }
