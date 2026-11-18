@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
-CL=postgres R=restore-check DBS="factory shard_a shard_b"
+# R: not "restore-check": CloudNativePG creates a ServiceAccount / Role named after each cluster, which would
+# overwrite this Job's own (same name) mid-run
+CL=postgres R=restore-target DBS="factory shard_a shard_b"
 log() { echo "$(date -u +%H:%M:%S) $*"; }
 primary=$(kubectl -n "$NS" get cluster "$CL" -o jsonpath='{.status.currentPrimary}')
 psql_on() { local pod=$1 db=$2; shift 2; kubectl -n "$NS" exec "$pod" -c postgres -- psql -X -v ON_ERROR_STOP=1 -U postgres -d "$db" -tAc "$*"; }
