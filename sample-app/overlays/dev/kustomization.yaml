@@ -8,10 +8,3 @@ replicas:
 images:
   - name: ghcr.io/mierai/sample-app
     newTag: "031766f"
-patches:
-  # Fault injection demo: the canary answers /hello with 500 → its error ratio fails the analysis → the rollout aborts
-  - target: { kind: Rollout, name: sample-app }
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env
-        value: [{ name: FAULT_HELLO, value: "1" }]
