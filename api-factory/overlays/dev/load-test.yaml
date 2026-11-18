@@ -1,0 +1,84 @@
+# Load test after each dev deployment (PostSync, after the smoke Job): 30 rps for 30s over the RPCs the synthetic
+# traffic uses. Thresholds breached → k6 exits 99 → the hook fails → the sync is marked Failed in Argo CD and the
+# ApiFactoryLoadTestFailed alert fires. dev only: prod is not load-tested (shared database, real traffic).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: load-test
+data:
+  rpc.js: |
+    import http from 'k6/http';
+    import { check } from 'k6';
+    export const options = {
+      scenarios: {
+        steady: { executor: 'constant-arrival-rate', rate: 30, timeUnit: '1s', duration: '30s',
+                  preAllocatedVUs: 10, maxVUs: 100 },
+      },
+      thresholds: {
+        http_req_failed: ['rate<0.01'],
+        'http_req_duration{rpc:ListJobs}': ['p(95)<300'],
+        'http_req_duration{rpc:ListEffectivePriceChanges}': ['p(95)<300'],
+        'http_req_duration{rpc:ListCurrentPrices}': ['p(95)<300'],
+        'http_req_duration{rpc:GetProductLabel}': ['p(95)<300'],
+        dropped_iterations: ['count<10'],
+      },
+      summaryTrendStats: ['med', 'p(95)', 'max'],
+    };
+    const calls = [
+      ['factory.jobs.v1.JobService/ListJobs', { pageSize: 3 }],
+      ['factory.sales.v1.SaleService/ListEffectivePriceChanges', { storeCode: 1, procDate: '2026-11-20' }],
+      ['factory.sales.v1.SaleService/ListCurrentPrices', { storeCode: 1, asOf: '2026-11-20' }],
+      ['factory.catalog.v1.CatalogService/GetProductLabel', { productCode: '100', labelCode: 'A' }],
+    ];
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${__ENV.TOKEN}` };
+    export default function () {
+      const [path, body] = calls[__ITER % calls.length];
+      const rpc = path.split('/')[1];
+      const r = http.post(`${__ENV.TARGET}/${path}`, JSON.stringify(body), { headers, tags: { rpc }, timeout: '5s' });
+      check(r, { 'status 200': (x) => x.status === 200 });
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-test
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"   # after the smoke Job
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 180
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsNonRoot: true, runAsUser: 12345, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: k6
+          image: grafana/k6:2.3.0
+          args: [run, --quiet, /scripts/rpc.js]
+          env:
+            - { name: TARGET, value: "http://api-factory:8080" }
+            - name: TOKEN
+              valueFrom: { secretKeyRef: { name: api-token, key: token } }
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts: [{ name: scripts, mountPath: /scripts, readOnly: true }]
+      volumes: [{ name: scripts, configMap: { name: load-test } }]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: load-test
+spec:
+  groups:
+    - name: api-factory.load-test
+      rules:
+        - alert: ApiFactoryLoadTestFailed
+          expr: kube_job_status_failed{namespace="api-factory-dev", job_name="load-test"} > 0
+          labels: { severity: ticket }
+          annotations:
+            summary: "api-factory dev: the post-deployment load test failed (do not promote this version to prod)"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#load-test-failed
