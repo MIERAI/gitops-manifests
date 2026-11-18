@@ -1,0 +1,11 @@
+# Daily restore check (prod): every night, prove the backups restore. A heartbeat row written to the live primary
+# (database "postgres", table restore_check: no application data) → WAL switched and archived → a throwaway cluster
+# recovered from the backups (latest base backup + WAL to the end) → the heartbeat is there (the point-in-time chain
+# reaches "now"), every table of the 3 databases is there with the same row count as live → deleted.
+# Restore time = the Job's duration (kube-state-metrics; recording rule restore_check:duration_seconds).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources: [rbac.yaml, cronjob.yaml, rules.yaml]
+configMapGenerator:
+  - name: restore-check
+    files: [check.sh]

@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: restore-check }
+spec:
+  timeZone: Asia/Tokyo
+  schedule: "30 4 * * *"          # after the daily base backup (03:00, ~15 min with ~5 GB)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0               # a failed restore is the finding: do not hide it behind a retry
+      activeDeadlineSeconds: 7200
+      template:
+        spec:
+          serviceAccountName: restore-check
+          restartPolicy: Never
+          securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: check
+              image: alpine/k8s:1.36.5
+              command: [/bin/bash, /scripts/check.sh]
+              env: [{ name: HOME, value: /tmp }]
+              resources:
+                requests: { cpu: 20m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - { name: scripts, configMap: { name: restore-check } }
+            - { name: tmp, emptyDir: {} }
