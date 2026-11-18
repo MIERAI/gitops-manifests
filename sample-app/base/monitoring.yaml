@@ -19,13 +19,15 @@ spec:
     - name: sample-app.slo
       rules:
         - record: sample_app:hello_errors:ratio_rate5m
+          # 1 - success ratio: with zero errors the 5xx series does not exist, and errors/total would be empty instead of 0
           expr: |
-            sum by (namespace) (rate(http_requests_total{route="GET /hello",code=~"5.."}[5m]))
-              / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[5m]))
+            1 - sum by (namespace) (rate(http_requests_total{route="GET /hello",code!~"5.."}[5m]))
+                  / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[5m]))
         - record: sample_app:hello_errors:ratio_rate1h
+          # 1 - success ratio: with zero errors the 5xx series does not exist, and errors/total would be empty instead of 0
           expr: |
-            sum by (namespace) (rate(http_requests_total{route="GET /hello",code=~"5.."}[1h]))
-              / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h]))
+            1 - sum by (namespace) (rate(http_requests_total{route="GET /hello",code!~"5.."}[1h]))
+                  / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h]))
         - alert: SampleAppErrorBudgetFastBurn
           # 14.4x burn: 2% of a 30-day budget in 1 hour
           expr: sample_app:hello_errors:ratio_rate5m > (14.4 * 0.005) and sample_app:hello_errors:ratio_rate1h > (14.4 * 0.005)
