@@ -1,6 +1,6 @@
 # Postgres managed by CloudNativePG: failover, continuous WAL archiving + daily base backups (point-in-time recovery).
 # Services created by the operator: postgres-rw (primary), postgres-ro (replicas), postgres-r (any).
-# Login: Secret postgres-app (basic-auth, scripts/secrets.sh). On GKE this would be Cloud SQL (infrastructure-live).
+# Login: Secret postgres-app (basic-auth, infrastructure-live tofu/modules/platform). On GKE this would be Cloud SQL (infrastructure-live).
 # Restore drill: infrastructure-live scripts/restore-drill.sh
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster

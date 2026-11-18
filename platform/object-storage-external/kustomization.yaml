@@ -1,6 +1,6 @@
 # Object storage OUTSIDE the cluster (laptop: SeaweedFS as a systemd service on the host, data on its own disk,
 # bound to the k3s bridge 10.42.0.1). Same Service name/port as platform/object-storage, so apps do not change.
-# Backups survive deleting / rebuilding the cluster. Host setup: infrastructure-live scripts/laptop-host.sh
+# Backups survive deleting / rebuilding the cluster. Host setup: infrastructure-live ansible/ (role seaweedfs)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: object-storage

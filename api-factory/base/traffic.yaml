@@ -16,7 +16,7 @@ spec:
           image: curlimages/curl:8.11.1
           env:
             - name: TOKEN
-              valueFrom: { secretKeyRef: { name: api-token, key: token } }   # created by infrastructure-live/scripts/secrets.sh
+              valueFrom: { secretKeyRef: { name: api-token, key: token } }   # created by infrastructure-live tofu/modules/platform (values: secrets/*.sops.yaml)
           command: ["sh", "-c"]
           args:
             - |
