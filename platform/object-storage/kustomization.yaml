@@ -1,0 +1,6 @@
+# SeaweedFS as a local S3 endpoint (http://seaweedfs.object-storage:8333, bucket "cnpg").
+# Credentials: Secret seaweedfs-s3 (infrastructure-live scripts/secrets.sh). On GKE this is a GCS bucket + Workload Identity.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: object-storage
+resources: [seaweedfs.yaml]

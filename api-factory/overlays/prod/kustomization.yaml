@@ -7,6 +7,17 @@ replicas:
   - name: api-factory
     count: 2
 patches:
+  # backups of each environment under their own prefix in the bucket
+  - target: { kind: ObjectStore, name: backups }
+    patch: |-
+      - op: replace
+        path: /spec/configuration/destinationPath
+        value: s3://cnpg/api-factory-prod
+  - target: { kind: Cluster, name: postgres }
+    patch: |-
+      - op: replace
+        path: /spec/instances
+        value: 2
   - target: { kind: Service, name: api-factory }
     patch: |-
       - op: replace

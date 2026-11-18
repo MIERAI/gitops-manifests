@@ -1,44 +1,95 @@
-# 本地环境用的 Postgres(GKE 上是 Cloud SQL,在 infrastructure-live 管)。密码在 Secret postgres(scripts/secrets.sh 生成)
-apiVersion: apps/v1
-kind: StatefulSet
+# Postgres managed by CloudNativePG: failover, continuous WAL archiving + daily base backups (point-in-time recovery).
+# Services created by the operator: postgres-rw (primary), postgres-ro (replicas), postgres-r (any).
+# Login: Secret postgres-app (basic-auth, scripts/secrets.sh). On GKE this would be Cloud SQL (infrastructure-live).
+# Restore drill: infrastructure-live scripts/restore-drill.sh
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
 metadata:
   name: postgres
   annotations: { argocd.argoproj.io/sync-wave: "0" }
 spec:
-  serviceName: postgres
-  replicas: 1
-  selector: { matchLabels: { app: postgres } }
-  template:
-    metadata: { labels: { app: postgres } }
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:16-alpine
-          env:
-            - { name: POSTGRES_USER, value: factory }
-            - { name: POSTGRES_DB, value: factory }
-            - name: POSTGRES_PASSWORD
-              valueFrom: { secretKeyRef: { name: postgres, key: POSTGRES_PASSWORD } }
-            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
-          ports: [{ containerPort: 5432 }]
-          readinessProbe:
-            exec: { command: ["pg_isready", "-U", "factory"] }
-            periodSeconds: 5
-          resources:
-            requests: { cpu: 100m, memory: 256Mi }
-            limits: { memory: 512Mi }
-          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
-  volumeClaimTemplates:
-    - metadata: { name: data }
-      spec:
-        accessModes: [ReadWriteOnce]
-        resources: { requests: { storage: 1Gi } }
+  instances: 1                  # prod: 2 (primary + streaming replica)
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10
+  storage: { size: 1Gi }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  bootstrap:
+    initdb:
+      database: factory
+      owner: factory
+      secret: { name: postgres-app }
+      postInitSQL:              # shards (FACTORY_SHARDS); tables come from the schema Job
+        - CREATE DATABASE shard_a OWNER factory
+        - CREATE DATABASE shard_b OWNER factory
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters: { barmanObjectName: backups }
 ---
-apiVersion: v1
-kind: Service
+# Where backups go. destinationPath is per environment (overlays).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
 metadata:
-  name: postgres
+  name: backups
   annotations: { argocd.argoproj.io/sync-wave: "0" }
 spec:
-  selector: { app: postgres }
-  ports: [{ port: 5432 }]
+  retentionPolicy: 7d
+  configuration:
+    destinationPath: s3://cnpg/OVERRIDDEN-BY-OVERLAY
+    endpointURL: http://seaweedfs.object-storage:8333
+    s3Credentials:
+      accessKeyId: { name: backup-s3, key: ACCESS_KEY_ID }
+      secretAccessKey: { name: backup-s3, key: ACCESS_SECRET_KEY }
+    wal: { compression: gzip }
+    data: { compression: gzip }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: daily
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  schedule: "0 0 18 * * *"      # 03:00 JST (seconds field first)
+  immediate: true               # first base backup right after creation: PITR works from day one
+  backupOwnerReference: self
+  cluster: { name: postgres }
+  method: plugin
+  pluginConfiguration: { name: barman-cloud.cloudnative-pg.io }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: postgres }
+spec:
+  selector: { matchLabels: { cnpg.io/cluster: postgres } }
+  podMetricsEndpoints:
+    - { port: metrics, interval: 30s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: { name: postgres }
+spec:
+  groups:
+    - name: api-factory.postgres
+      rules:
+        - alert: PostgresWalArchivingFailing
+          expr: increase(cnpg_pg_stat_archiver_failed_count[10m]) > 0
+          for: 10m
+          labels: { severity: page }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }}: WAL archiving fails, point-in-time recovery window is not advancing"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#database-backups
+        - alert: PostgresWalArchivingStale
+          expr: cnpg_pg_stat_archiver_seconds_since_last_archival > 900 and on (pod) cnpg_pg_replication_in_recovery == 0
+          for: 5m
+          labels: { severity: page }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }}: no WAL archived for 15 minutes (archive_timeout is 5 minutes)"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#database-backups
+        - alert: PostgresReplicationLag
+          expr: cnpg_pg_replication_lag > 30
+          for: 5m
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }}: replica is {{ $value }}s behind the primary"
+            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#database-replication

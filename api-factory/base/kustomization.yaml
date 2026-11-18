@@ -1,4 +1,4 @@
-# api-factory(查询工厂生成的 API)。顺序(sync wave): Postgres → 建表 Job → API → 部署后的检查
+# api-factory(查询工厂生成的 API)。顺序(sync wave): Postgres(CloudNativePG + 备份)→ 建表 Job → API → 部署后的检查
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 labels:
