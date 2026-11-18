@@ -4,6 +4,12 @@ kind: Kustomization
 namespace: api-factory-dev
 resources: [../../base]
 patches:
+  # backups of each environment under their own prefix in the bucket
+  - target: { kind: ObjectStore, name: backups }
+    patch: |-
+      - op: replace
+        path: /spec/configuration/destinationPath
+        value: s3://cnpg/api-factory-dev
   # dev だけ: 建表のあとにデモデータ(api-factory の db/seed)を入れる
   - target: { kind: Job, name: schema }
     patch: |-

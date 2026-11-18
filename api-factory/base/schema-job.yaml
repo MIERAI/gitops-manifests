@@ -18,10 +18,10 @@ spec:
         - name: schema
           image: ghcr.io/mierai/api-factory-schema
           env:
-            - { name: PGHOST, value: postgres }
+            - { name: PGHOST, value: postgres-rw }   # CloudNativePG primary service
             - { name: PGUSER, value: factory }
             - name: PGPASSWORD
-              valueFrom: { secretKeyRef: { name: postgres, key: POSTGRES_PASSWORD } }
+              valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 128Mi }
