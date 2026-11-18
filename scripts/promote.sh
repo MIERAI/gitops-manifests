@@ -8,10 +8,10 @@ src=$app/overlays/$from/kustomization.yaml; dst=$app/overlays/$to/kustomization.
 python3 - "$src" "$dst" <<'PY'
 import re, sys
 src, dst = sys.argv[1], sys.argv[2]
-tags = dict(re.findall(r"- name: (\S+)\n\s+newTag: (\S+)", open(src).read()))
+tags = dict(re.findall(r"- name: (\S+)\n\s+newTag: \"?([^\"\s]+)\"?", open(src).read()))
 s = open(dst).read()
 for name, tag in tags.items():
-    s, n = re.subn(rf"(- name: {re.escape(name)}\n\s+newTag: )\S+", rf"\g<1>{tag}", s)
+    s, n = re.subn(rf"(- name: {re.escape(name)}\n\s+newTag: )\S+", rf'\g<1>"{tag}"', s)
     if n != 1:
         sys.exit(f"{dst}: image {name} not found")
 open(dst, "w").write(s)

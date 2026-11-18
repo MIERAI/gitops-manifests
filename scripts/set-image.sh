@@ -11,7 +11,7 @@ for kv in "$@"; do
 import re, sys
 f, img, tag = sys.argv[1:]
 s = open(f).read()
-s, n = re.subn(rf"(- name: {re.escape(img)}\n\s+newTag: )\S+", rf"\g<1>{tag}", s)
+s, n = re.subn(rf"(- name: {re.escape(img)}\n\s+newTag: )\S+", rf'\g<1>"{tag}"', s)
 if n != 1:
     sys.exit(f"{f}: image {img} not found")
 open(f, "w").write(s)
