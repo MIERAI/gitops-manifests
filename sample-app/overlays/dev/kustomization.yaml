@@ -4,4 +4,4 @@ namespace: sample-app-dev
 resources: [../../base]
 images:
   - name: ghcr.io/mierai/sample-app
-    newTag: "9388291"
+    newTag: "2b7a345"
