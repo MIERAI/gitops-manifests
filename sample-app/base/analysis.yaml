@@ -1,5 +1,8 @@
 # The canary must answer /hello with a message, 3 times in a row (a failure or 2 consecutive errors abort the rollout).
 # The analysis runs in the Argo Rollouts controller (another namespace): use the fully qualified service name.
+# Connection: close — the controller's HTTP client keeps connections alive; through the ClusterIP NAT an old connection
+# stays pinned (conntrack) to the pod it was opened to, even after Rollouts switches the canary Service selector.
+# Without it the analysis kept checking the *stable* pod and passed a faulty canary (fault injection demo, 3 runs).
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -19,4 +22,6 @@ spec:
         web:
           url: "http://{{args.service}}.{{args.namespace}}.svc.cluster.local:8080/hello?name=canary"
           jsonPath: "{$.message}"
+          headers:
+            - { key: Connection, value: close }
           timeoutSeconds: 5
