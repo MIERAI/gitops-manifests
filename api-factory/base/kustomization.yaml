@@ -9,6 +9,8 @@ resources:
   - deployment.yaml
   - service.yaml
   - smoke-job.yaml
+  - monitoring.yaml
+  - traffic.yaml
 images:
   - name: ghcr.io/mierai/api-factory
   - name: ghcr.io/mierai/api-factory-schema

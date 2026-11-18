@@ -1,0 +1,20 @@
+# Synthetic traffic (2 req/s): a local cluster has no users. Feeds the metrics, the SLO alerts and the canary analysis.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetic-traffic
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: synthetic-traffic } }
+  template:
+    metadata: { labels: { app: synthetic-traffic } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 100, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: curl
+          image: curlimages/curl:8.11.1
+          command: ["sh", "-c", "while true; do curl -s -o /dev/null --max-time 2 'http://sample-app:8080/hello?name=synthetic'; sleep 0.5; done"]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
