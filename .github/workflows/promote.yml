@@ -33,4 +33,4 @@ jobs:
           git checkout -b "$branch"; git commit -am "promote ${{ inputs.app }} ${{ inputs.from }} → ${{ inputs.to }}: ${{ steps.tags.outputs.tags }}"
           git push origin "$branch"
           gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" \
-            --body "dev で動いている版を ${{ inputs.to }} へ: \`${{ steps.tags.outputs.tags }}\`。マージすると Argo CD が同期します。"
+            --body "Promote the version running in ${{ inputs.from }} to ${{ inputs.to }}: \`${{ steps.tags.outputs.tags }}\`. Merging lets Argo CD sync ${{ inputs.to }}."
