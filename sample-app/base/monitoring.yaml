@@ -19,15 +19,19 @@ spec:
     - name: sample-app.slo
       rules:
         - record: sample_app:hello_errors:ratio_rate5m
-          # 1 - success ratio: with zero errors the 5xx series does not exist, and errors/total would be empty instead of 0
+          # errors / total; a namespace with no error series counts as 0 errors (total * 0). Neither errors/total
+          # (empty when no error) nor 1 - success/total (empty when everything fails → the alert would stay silent).
           expr: |
-            1 - sum by (namespace) (rate(http_requests_total{route="GET /hello",code!~"5.."}[5m]))
-                  / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[5m]))
+            (sum by (namespace) (rate(http_requests_total{route="GET /hello",code=~"5.."}[5m]))
+               or sum by (namespace) (rate(http_requests_total{route="GET /hello"}[5m])) * 0)
+              / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[5m]))
         - record: sample_app:hello_errors:ratio_rate1h
-          # 1 - success ratio: with zero errors the 5xx series does not exist, and errors/total would be empty instead of 0
+          # errors / total; a namespace with no error series counts as 0 errors (total * 0). Neither errors/total
+          # (empty when no error) nor 1 - success/total (empty when everything fails → the alert would stay silent).
           expr: |
-            1 - sum by (namespace) (rate(http_requests_total{route="GET /hello",code!~"5.."}[1h]))
-                  / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h]))
+            (sum by (namespace) (rate(http_requests_total{route="GET /hello",code=~"5.."}[1h]))
+               or sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h])) * 0)
+              / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h]))
         - alert: SampleAppErrorBudgetFastBurn
           # 14.4x burn: 2% of a 30-day budget in 1 hour
           expr: sample_app:hello_errors:ratio_rate5m > (14.4 * 0.005) and sample_app:hello_errors:ratio_rate1h > (14.4 * 0.005)

@@ -20,8 +20,9 @@ spec:
       rules:
         - record: api_factory:server_errors:ratio_rate5m
           expr: |
-            1 - sum by (namespace) (rate(rpc_requests_total{code!~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
-                  / sum by (namespace) (rate(rpc_requests_total[5m]))
+            (sum by (namespace) (rate(rpc_requests_total{code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
+               or sum by (namespace) (rate(rpc_requests_total[5m])) * 0)
+              / sum by (namespace) (rate(rpc_requests_total[5m]))
         - alert: ApiFactoryServerErrors
           expr: api_factory:server_errors:ratio_rate5m > 0.01
           for: 5m

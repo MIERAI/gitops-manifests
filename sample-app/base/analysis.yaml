@@ -19,11 +19,13 @@ spec:
       provider:
         prometheus:
           address: http://kps-prometheus.monitoring.svc.cluster.local:9090
-          # 1 - success ratio: with zero errors the 5xx series does not exist and errors/total is empty (aborted a healthy
-          # canary in prod the first time this ran). An empty result here = no traffic reached the canary.
+          # errors / total, with "no error series" counted as 0 errors:
+          #   no error → 0, all errors → 1, no traffic → empty (= Failed: no evidence, fail safe).
+          # (errors/total alone is empty when there is no error — that aborted a healthy canary in prod;
+          #  1 - success/total is empty when everything fails — it only "failed" by accident in the fault injection)
           query: |
-            1 - sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello",code!~"5.."}[1m]))
-                  / sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello"}[1m]))
+            (sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello",code=~"5.."}[1m])) or vector(0))
+              / sum(rate(http_requests_total{namespace="{{args.namespace}}",rollouts_pod_template_hash="{{args.canary-hash}}",route="GET /hello"}[1m]))
     - name: p95-latency
       interval: 15s
       count: 4
