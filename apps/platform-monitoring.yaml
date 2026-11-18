@@ -39,7 +39,9 @@ spec:
           admin: { existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password }   # created by infrastructure-live/scripts/secrets.sh
           sidecar:
             dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
-          resources: { requests: { cpu: 20m, memory: 128Mi }, limits: { memory: 256Mi } }
+          resources: { requests: { cpu: 50m, memory: 192Mi }, limits: { memory: 512Mi } }
+          # Grafana 13 needs more than the default 60s to start on a laptop: the liveness probe killed it in a loop (exit 137)
+          livenessProbe: { httpGet: { path: /api/health, port: 3000 }, initialDelaySeconds: 180, timeoutSeconds: 30, failureThreshold: 10 }
         kube-state-metrics:
           resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } }
         prometheus-node-exporter:
