@@ -38,6 +38,11 @@ metadata:
   annotations: { argocd.argoproj.io/sync-wave: "0" }
 spec:
   retentionPolicy: 7d
+  # The plugin injects this sidecar into every Postgres Pod (WAL archiving, base backups). Peak seen: ~110Mi during a backup.
+  instanceSidecarConfiguration:
+    resources:
+      requests: { cpu: 10m, memory: 128Mi }
+      limits: { memory: 512Mi }
   configuration:
     destinationPath: s3://cnpg/OVERRIDDEN-BY-OVERLAY
     endpointURL: http://seaweedfs.object-storage:8333
