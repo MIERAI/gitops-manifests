@@ -1,0 +1,40 @@
+# Canary release with automatic abort:
+#   50% → pause 20s → analysis (3 checks of /hello on the canary pods) → 100%.
+#   If the analysis fails, the rollout aborts and the stable version keeps serving.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: sample-app
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector: { matchLabels: { app: sample-app } }
+  strategy:
+    canary:
+      canaryService: sample-app-canary   # selects only the canary pods (used by the analysis)
+      stableService: sample-app          # selects only the stable pods while a rollout is in progress
+      steps:
+        - setWeight: 50
+        - pause: { duration: 20s }
+        - analysis:
+            templates: [{ templateName: hello-ok }]
+            args: [{ name: service, value: sample-app-canary }]
+        - setWeight: 100
+  template:
+    metadata: { labels: { app: sample-app } }
+    spec:
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }   # distroless nonroot
+      containers:
+        - name: app
+          image: ghcr.io/mierai/sample-app
+          ports: [{ containerPort: 8080, name: http }]
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }

@@ -1,0 +1,19 @@
+# The canary must answer /hello with a message, 3 times in a row (any failure aborts the rollout)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: hello-ok
+spec:
+  args:
+    - name: service
+  metrics:
+    - name: hello
+      count: 3
+      interval: 5s
+      failureLimit: 0
+      successCondition: result != ""
+      provider:
+        web:
+          url: "http://{{args.service}}:8080/hello?name=canary"
+          jsonPath: "{$.message}"
+          timeoutSeconds: 5
