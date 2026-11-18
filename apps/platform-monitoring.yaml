@@ -36,7 +36,7 @@ spec:
           alertmanagerSpec:
             resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } }
         grafana:
-          admin: { existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password }   # created by infrastructure-live/scripts/secrets.sh
+          admin: { existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password }   # created by infrastructure-live tofu/modules/platform (values: secrets/*.sops.yaml)
           sidecar:
             dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
           resources: { requests: { cpu: 50m, memory: 192Mi }, limits: { memory: 512Mi } }
