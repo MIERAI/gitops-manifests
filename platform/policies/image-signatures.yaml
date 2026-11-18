@@ -10,8 +10,9 @@ spec:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:
       - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
-  matchImageReferences:
+  matchImageReferences:   # tag and digest references (a digest-only reference must not bypass the check)
     - glob: "ghcr.io/mierai/sample-app:*"
+    - glob: "ghcr.io/mierai/sample-app@*"
   validationConfigurations:
     required: true
     mutateDigest: false   # keep the Pod spec as in Git (Argo CD diff)
