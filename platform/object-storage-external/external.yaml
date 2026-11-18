@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata: { name: seaweedfs }
+spec:
+  ports: [{ name: s3, port: 8333, targetPort: 8333 }]   # no selector: endpoints below
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: seaweedfs-host
+  labels: { kubernetes.io/service-name: seaweedfs }
+addressType: IPv4
+ports: [{ name: s3, port: 8333, protocol: TCP }]
+endpoints: [{ addresses: ["10.42.0.1"] }]   # host's cni0 address

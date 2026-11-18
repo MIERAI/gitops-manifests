@@ -1,0 +1,9 @@
+# Voluntary disruptions (node drain, upgrade) take at most one Pod at a time: with 2 replicas one keeps serving.
+# maxUnavailable rather than minAvailable: with 1 replica (dev) a drain is still possible.
+# (The database has its own PodDisruptionBudget, created by CloudNativePG: postgres-primary.)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: api-factory }
+spec:
+  maxUnavailable: 1
+  selector: { matchLabels: { app: api-factory } }

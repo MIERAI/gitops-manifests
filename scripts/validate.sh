@@ -12,10 +12,11 @@ for o in */overlays/*/; do
   echo "• $o"
   kubectl kustomize "$o" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
 done
-$KC -strict -summary \
-  -schema-location default \
-  -schema-location "$CRDS" \
-  apps/
+# Applications: apps/ (kind) and every cluster built on it (clusters/<name>)
+for a in apps/ clusters/*/; do
+  echo "• $a"
+  kubectl kustomize "$a" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
+done
 for p in platform/*/; do echo "• $p"; kubectl kustomize "$p" > /dev/null; done
 
 echo "• admission policies"

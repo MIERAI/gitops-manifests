@@ -1,0 +1,32 @@
+# The laptop cluster (k3s on a Linux laptop, always on): every Application of apps/, plus
+# - object storage outside the cluster (host SeaweedFS on its own disk): backups survive a cluster rebuild
+# - Alertmanager routes our alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
+#   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
+#   inside one process
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps
+  - platform-alert-speaker.yaml
+patches:
+  - target: { kind: Application, name: platform-object-storage }
+    patch: |-
+      - { op: replace, path: /spec/source/path, value: platform/object-storage-external }
+  - target: { kind: Application, name: platform-monitoring }
+    patch: |-
+      - op: add
+        path: /spec/source/helm/valuesObject/alertmanager/config
+        value:
+          route:
+            receiver: "null"
+            group_by: [alertname, namespace]
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 12h
+            routes:
+              - { receiver: speaker, matchers: ['severity=~"page|ticket"'] }
+          receivers:
+            - name: "null"
+            - name: speaker
+              webhook_configs:
+                - { url: "http://alert-speaker.alert-speaker.svc:8080/", send_resolved: true }
