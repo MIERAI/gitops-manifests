@@ -13,4 +13,4 @@ patches:
         value: 30083
 images:
   - name: ghcr.io/mierai/sample-app
-    newTag: f548864
+    newTag: bb5ecc1
