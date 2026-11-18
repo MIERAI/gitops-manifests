@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write   # report the validation of the promoted commit (PRs opened by GITHUB_TOKEN do not trigger the validate workflow)
 jobs:
   promote:
     runs-on: ubuntu-latest
@@ -34,4 +35,8 @@ jobs:
           git checkout -b "$branch"; git commit -am "promote ${{ inputs.app }} ${{ inputs.from }} → ${{ inputs.to }}: ${{ steps.tags.outputs.tags }}"
           git push origin "$branch"
           { echo "Promote the version running in ${{ inputs.from }} to ${{ inputs.to }}: \`${{ steps.tags.outputs.tags }}\`. Merging lets Argo CD sync ${{ inputs.to }}."; echo; scripts/diff.sh origin/main; } > body.md
-          gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" --body-file body.md
+          # the validation above ran on exactly this commit: report it as the required "validate" check
+          gh api "repos/${{ github.repository }}/statuses/$(git rev-parse HEAD)" -f state=success -f context=validate \
+            -f description="scripts/validate.sh passed in the promote workflow" >/dev/null
+          url=$(gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" --body-file body.md)
+          echo "$url"
