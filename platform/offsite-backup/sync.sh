@@ -18,5 +18,6 @@ export RCLONE_CONFIG_VAULT_TYPE=crypt RCLONE_CONFIG_VAULT_REMOTE=phone: RCLONE_C
 start=$(date +%s)
 rclone sync src:cnpg vault:cnpg --backup-dir "vault:trash/$(date -u +%F)" --transfers 4 --checkers 8 \
   --stats-one-line --stats-log-level NOTICE --stats 60s
-rclone delete vault:trash --min-age 14d --rmdirs
+# trash/ exists only after the first deletion at the source
+if rclone lsf vault: --dirs-only | grep -qx 'trash/'; then rclone delete vault:trash --min-age 14d --rmdirs; fi
 echo "synced in $(( $(date +%s) - start ))s; off-site copy: $(rclone size vault:cnpg --json)"
