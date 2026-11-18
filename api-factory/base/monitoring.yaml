@@ -8,7 +8,7 @@ metadata:
 spec:
   selector: { matchLabels: { app: api-factory } }
   podMetricsEndpoints:
-    - { port: http, path: /metrics, interval: 10s }
+    - { port: metrics, path: /metrics, interval: 10s }   # internal port, no auth (METRICS_PORT)
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -20,8 +20,8 @@ spec:
       rules:
         - record: api_factory:server_errors:ratio_rate5m
           expr: |
-            sum by (namespace) (rate(rpc_requests_total{code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
-              / sum by (namespace) (rate(rpc_requests_total[5m]))
+            1 - sum by (namespace) (rate(rpc_requests_total{code!~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
+                  / sum by (namespace) (rate(rpc_requests_total[5m]))
         - alert: ApiFactoryServerErrors
           expr: api_factory:server_errors:ratio_rate5m > 0.01
           for: 5m

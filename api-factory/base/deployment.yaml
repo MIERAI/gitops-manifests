@@ -17,9 +17,10 @@ spec:
       containers:
         - name: api
           image: ghcr.io/mierai/api-factory
-          ports: [{ containerPort: 8080, name: http }]
+          ports: [{ containerPort: 8080, name: http }, { containerPort: 9091, name: metrics }]
           env:
             - { name: AUTH_MODE, value: token }
+            - { name: METRICS_PORT, value: "9091" }   # metrics without auth, not exposed by the Service
           envFrom:
             - secretRef: { name: api-factory }   # DATABASE_URL / FACTORY_SHARDS / PAGE_TOKEN_KEY / AUTH_TOKEN_SHA256
           readinessProbe:
