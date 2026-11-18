@@ -11,4 +11,6 @@ metadata:
   labels: { kubernetes.io/service-name: seaweedfs }
 addressType: IPv4
 ports: [{ name: s3, port: 8333, protocol: TCP }]
-endpoints: [{ addresses: ["10.42.0.1"] }]   # host's cni0 address
+# host's cni0 address. conditions written out: the API server adds an empty `conditions: {}`, which Argo CD
+# otherwise reports as a permanent difference
+endpoints: [{ addresses: ["10.42.0.1"], conditions: { ready: true } }]
