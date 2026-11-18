@@ -14,6 +14,7 @@ spec:
     spec:
       restartPolicy: OnFailure
       imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }   # image USER 65532
       containers:
         - name: schema
           image: ghcr.io/mierai/api-factory-schema
@@ -25,3 +26,4 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 128Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }

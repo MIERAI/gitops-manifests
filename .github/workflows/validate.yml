@@ -1,4 +1,4 @@
-# 每个 overlay 都能构建,并且通过 Kubernetes 的 schema 校验
+# 每个 overlay 都能构建,通过 Kubernetes 的 schema 校验和准入策略(Kyverno)
 name: validate
 on:
   pull_request:
@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: kubeconform
-        run: |
-          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin kubeconform
+      - name: tools (kubeconform, kyverno CLI)
+        run: sudo scripts/install-tools.sh
       - run: scripts/validate.sh

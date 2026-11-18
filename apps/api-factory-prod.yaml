@@ -15,4 +15,6 @@ spec:
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true]
+    managedNamespaceMetadata:   # admission policies apply to namespaces with this label (platform/policies)
+      labels: { gitops-platform/policies: enforced }
     retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

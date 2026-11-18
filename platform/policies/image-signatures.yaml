@@ -1,0 +1,28 @@
+# Images from public app repos must carry a cosign keyless signature made by the shared build workflow on main
+# (gitops-platform-blueprint build-image.yml, sign: true). Private repos (api-factory) are not signed: signing would
+# publish the repository name in the public transparency log.
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata: { name: verify-image-signatures }
+spec:
+  validationActions: [Audit]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  matchImageReferences:
+    - glob: "ghcr.io/mierai/sample-app:*"
+  validationConfigurations:
+    required: true
+    mutateDigest: false   # keep the Pod spec as in Git (Argo CD diff)
+    verifyDigest: false   # tags are commits; the digest is checked through the signature
+  attestors:
+    - name: ci
+      cosign:
+        keyless:
+          identities:
+            - subject: https://github.com/MIERAI/gitops-platform-blueprint/.github/workflows/build-image.yml@refs/heads/main
+              issuer: https://token.actions.githubusercontent.com
+  validations:
+    - expression: images.containers.map(image, verifyImageSignatures(image, [attestors.ci])).all(e, e > 0)
+      message: "image is not signed by the shared build workflow (gitops-platform-blueprint build-image.yml on main)"
