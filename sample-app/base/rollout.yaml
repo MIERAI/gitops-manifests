@@ -18,7 +18,9 @@ spec:
         - pause: { duration: 20s }
         - analysis:
             templates: [{ templateName: hello-ok }]
-            args: [{ name: service, value: sample-app-canary }]
+            args:
+              - { name: service, value: sample-app-canary }
+              - { name: namespace, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
         - setWeight: 100
   template:
     metadata: { labels: { app: sample-app } }

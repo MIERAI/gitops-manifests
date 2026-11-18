@@ -1,4 +1,5 @@
-# The canary must answer /hello with a message, 3 times in a row (any failure aborts the rollout)
+# The canary must answer /hello with a message, 3 times in a row (a failure or 2 consecutive errors abort the rollout).
+# The analysis runs in the Argo Rollouts controller (another namespace): use the fully qualified service name.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -6,14 +7,16 @@ metadata:
 spec:
   args:
     - name: service
+    - name: namespace
   metrics:
     - name: hello
       count: 3
       interval: 5s
       failureLimit: 0
+      consecutiveErrorLimit: 2
       successCondition: result != ""
       provider:
         web:
-          url: "http://{{args.service}}:8080/hello?name=canary"
+          url: "http://{{args.service}}.{{args.namespace}}.svc.cluster.local:8080/hello?name=canary"
           jsonPath: "{$.message}"
           timeoutSeconds: 5
