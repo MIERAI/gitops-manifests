@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
       - name: 更新 tag
         id: tags
         run: echo "tags=$(scripts/promote.sh '${{ inputs.app }}' '${{ inputs.from }}' '${{ inputs.to }}')" >> "$GITHUB_OUTPUT"
@@ -32,5 +33,5 @@ jobs:
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"; git commit -am "promote ${{ inputs.app }} ${{ inputs.from }} → ${{ inputs.to }}: ${{ steps.tags.outputs.tags }}"
           git push origin "$branch"
-          gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" \
-            --body "Promote the version running in ${{ inputs.from }} to ${{ inputs.to }}: \`${{ steps.tags.outputs.tags }}\`. Merging lets Argo CD sync ${{ inputs.to }}."
+          { echo "Promote the version running in ${{ inputs.from }} to ${{ inputs.to }}: \`${{ steps.tags.outputs.tags }}\`. Merging lets Argo CD sync ${{ inputs.to }}."; echo; scripts/diff.sh origin/main; } > body.md
+          gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" --body-file body.md
