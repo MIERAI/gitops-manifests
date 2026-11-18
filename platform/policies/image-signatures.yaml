@@ -1,11 +1,13 @@
 # Images from public app repos must carry a cosign keyless signature made by the shared build workflow on main
 # (gitops-platform-blueprint build-image.yml, sign: true). Private repos (api-factory) are not signed: signing would
 # publish the repository name in the public transparency log.
+# failurePolicy stays Fail (default): if the signature cannot be checked (Sigstore / registry unreachable), new
+# sample-app Pods are rejected. Running Pods are not affected.
 apiVersion: policies.kyverno.io/v1
 kind: ImageValidatingPolicy
 metadata: { name: verify-image-signatures }
 spec:
-  validationActions: [Audit]
+  validationActions: [Deny]
   matchConstraints:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:

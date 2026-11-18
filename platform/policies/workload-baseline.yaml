@@ -3,7 +3,7 @@ apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata: { name: disallow-latest-tag }
 spec:
-  validationActions: [Audit]
+  validationActions: [Deny]
   matchConstraints:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:
@@ -26,7 +26,7 @@ apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata: { name: require-resources }
 spec:
-  validationActions: [Audit]
+  validationActions: [Deny]
   matchConstraints:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:
@@ -52,7 +52,7 @@ apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata: { name: require-readiness-probe }
 spec:
-  validationActions: [Audit]
+  validationActions: [Deny]
   matchConstraints:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:
@@ -73,7 +73,7 @@ apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata: { name: require-non-root }
 spec:
-  validationActions: [Audit]
+  validationActions: [Deny]
   matchConstraints:
     namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
     resourceRules:

@@ -2,6 +2,7 @@
 # Argo CD Application). Platform namespaces (upstream manifests) are not matched.
 # Rules are written against Pods; Kyverno autogen applies them to the controllers too, so a violating Deployment is
 # rejected at sync time (Argo CD shows the message) instead of failing later when its Pods are created.
+# Rollout: Audit first (PolicyReports, `kubectl get policyreports -A`), fix the findings, then Deny.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
