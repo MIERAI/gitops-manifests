@@ -1,0 +1,17 @@
+# Reviewed exceptions. Each one names the policy, the exact workload and why.
+#
+# synthetic-traffic: a load generator (curl loop) that receives no traffic itself, so "ready" has no meaning for it.
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: synthetic-traffic-no-readiness-probe
+  namespace: kyverno
+spec:
+  policyRefs:
+    - { name: require-readiness-probe, kind: ValidatingPolicy }
+  matchConditions:
+    - name: synthetic-traffic
+      expression: >-
+        object.metadata.namespace.matches('^(api-factory|sample-app)-(dev|prod)$') &&
+        (object.kind == 'Deployment' ? object.metadata.name == 'synthetic-traffic'
+          : has(object.metadata.labels) && object.metadata.labels[?'app'].orValue('') == 'synthetic-traffic')

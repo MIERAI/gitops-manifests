@@ -12,7 +12,7 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      securityContext: { runAsNonRoot: true, runAsUser: 100 }
+      securityContext: { runAsNonRoot: true, runAsUser: 100, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: smoke
           image: curlimages/curl:8.11.1
@@ -26,3 +26,4 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
