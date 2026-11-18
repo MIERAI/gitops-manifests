@@ -1,0 +1,16 @@
+# Every Application (app of apps). The kind cluster's root app renders this directory; other clusters build on it
+# in clusters/<name> (e.g. clusters/laptop). New Application → add it here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - api-factory-dev.yaml
+  - api-factory-prod.yaml
+  - platform-argo-rollouts.yaml
+  - platform-cert-manager.yaml
+  - platform-cnpg.yaml
+  - platform-kyverno.yaml
+  - platform-monitoring.yaml
+  - platform-object-storage.yaml
+  - platform-policies.yaml
+  - sample-app-dev.yaml
+  - sample-app-prod.yaml

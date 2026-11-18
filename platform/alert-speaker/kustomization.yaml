@@ -1,0 +1,8 @@
+# Alertmanager → speakd: the laptop reads alerts out loud (laptop cluster only, see clusters/laptop).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: alert-speaker
+resources: [deployment.yaml]
+configMapGenerator:
+  - name: alert-speaker
+    files: [speaker.py]
