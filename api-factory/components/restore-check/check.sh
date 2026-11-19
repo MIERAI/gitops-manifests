@@ -68,4 +68,40 @@ for db in $DBS; do
   if [ -n "${want[$db]}" ] && [ "$have" = "${want[$db]}" ]; then log "✓ $db: $(wc -w <<<"$have" | tr -d ' ') tables, row counts equal to live"
   else log "✗ $db: live [${want[$db]}] restored [$have]"; fail=1; fi
 done
-exit $fail
+[ "$fail" = 0 ] || exit 1
+
+# 4. migration rehearsal: the migrations of the next release (the image dev runs now) on this copy of prod's data
+#    (millions of rows, dirty values): a migration that would fail, or lock a big table for long, fails here first.
+candidate=$(kubectl -n "${CANDIDATE_NAMESPACE:-api-factory-dev}" get deploy api-factory \
+  -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="migrate")].image}' 2>/dev/null || true)
+if [ -z "$candidate" ]; then log "– migration rehearsal skipped: no candidate image found"; exit 0; fi
+current=$(kubectl -n "$NS" get deploy api-factory -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="migrate")].image}')
+log "migration rehearsal: $candidate (prod runs $current)"
+kubectl -n "$NS" delete pod migrate-rehearsal --ignore-not-found --wait=true >/dev/null
+kubectl -n "$NS" apply -f - >/dev/null <<YAML
+apiVersion: v1
+kind: Pod
+metadata: { name: migrate-rehearsal, labels: { app: migrate-rehearsal } }
+spec:
+  restartPolicy: Never
+  imagePullSecrets: [{ name: ghcr-pull }]
+  securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
+  containers:
+    - name: migrate
+      image: $candidate
+      env:
+        - { name: PGHOST, value: $R-rw }
+        - { name: PGUSER, value: factory }
+        - name: PGPASSWORD
+          valueFrom: { secretKeyRef: { name: postgres-app, key: password } }   # restored: the same roles as prod
+      resources: { requests: { cpu: 50m, memory: 32Mi }, limits: { memory: 128Mi } }
+      securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+YAML
+for _ in $(seq 1 720); do   # ≤ 60 min
+  p=$(kubectl -n "$NS" get pod migrate-rehearsal -o jsonpath='{.status.phase}')
+  case $p in Succeeded|Failed) break ;; esac; sleep 5
+done
+kubectl -n "$NS" logs migrate-rehearsal | sed 's/^/    /'
+kubectl -n "$NS" delete pod migrate-rehearsal --wait=false >/dev/null
+if [ "$p" = Succeeded ]; then log "✓ migration rehearsal: the next release's migrations apply on a copy of prod"
+else log "✗ migration rehearsal failed ($p): do not promote this version to prod"; exit 1; fi

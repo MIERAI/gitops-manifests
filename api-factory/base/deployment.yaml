@@ -14,6 +14,25 @@ spec:
     spec:
       imagePullSecrets: [{ name: ghcr-pull }]
       securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }   # distroless 的 nonroot
+      # Schema migrations (goose, image built with the API in the same release) before every start: a new version
+      # migrates before it serves, and a re-created database gets its tables without a deploy. Concurrent pods: a
+      # Postgres advisory lock runs each migration once. Migrations must stay compatible with the running version
+      # (expand / contract): during a rolling update the old pods keep serving on the new schema.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/mierai/api-factory-schema
+          env:
+            - { name: PGHOST, value: postgres-rw }   # CloudNativePG primary service
+            - { name: PGUSER, value: factory }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
       containers:
         - name: api
           image: ghcr.io/mierai/api-factory

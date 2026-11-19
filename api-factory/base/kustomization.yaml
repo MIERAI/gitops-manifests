@@ -6,7 +6,6 @@ labels:
 resources:
   - postgres.yaml
   - pdb.yaml
-  - schema-job.yaml
   - deployment.yaml
   - service.yaml
   - smoke-job.yaml
