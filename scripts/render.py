@@ -23,7 +23,7 @@ def apps(root="."):
     out = []
     for f in sorted(glob.glob(os.path.join(root, "apps", "*.yaml"))):
         s = open(f).read()
-        if "kind: Application" not in s or f"repoURL: {REPO}" not in s:
+        if not re.search(r"^kind: Application$", s, re.M) or f"repoURL: {REPO}" not in s:  # not the ApplicationSet
             continue
         name = re.search(r"^metadata:\n(?:\s+.*\n)*?\s+name:\s*(\S+)", s, re.M).group(1)
         path = re.search(r"^\s+path:\s*(\S+)", s, re.M).group(1)
