@@ -5,7 +5,7 @@ every layout the Applications use.
   python3 scripts/render.py list [root]          one line per Application: <name> <source path>
   python3 scripts/render.py render <name> [root] its manifests (root: another checkout, e.g. the PR's base)
 
-Reads the Application files with regular expressions (standard library only; the files follow apps/*.yaml).
+Reads the Application files with regular expressions (they follow apps/*.yaml) and the descriptors with appdesc.py.
 """
 import glob
 import os
@@ -13,14 +13,17 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # appdesc (python3 -I does not add the script's dir)
+
 REPO = "https://github.com/MIERAI/gitops-manifests.git"
 
 
 def apps(root="."):
+    """Applications listed in apps/*.yaml, then those the ApplicationSet derives from */app.yaml."""
     out = []
     for f in sorted(glob.glob(os.path.join(root, "apps", "*.yaml"))):
         s = open(f).read()
-        if "kind: Application" not in s or f"repoURL: {REPO}" not in s:
+        if not re.search(r"^kind: Application$", s, re.M) or f"repoURL: {REPO}" not in s:  # not the ApplicationSet
             continue
         name = re.search(r"^metadata:\n(?:\s+.*\n)*?\s+name:\s*(\S+)", s, re.M).group(1)
         path = re.search(r"^\s+path:\s*(\S+)", s, re.M).group(1)
@@ -29,7 +32,10 @@ def apps(root="."):
         rel = re.search(r"releaseName:\s*(\S+)", s)
         out.append({"name": name, "path": path, "namespace": ns,
                     "values": [v.strip() for v in vf.group(1).split(",") if v.strip()] if vf else [],
-                    "release": rel.group(1) if rel else name})
+                    "release": rel.group(1) if rel else name, "enforced": "gitops-platform/policies: enforced" in s})
+    import appdesc
+    for d in appdesc.all_apps(root):
+        out += appdesc.applications(d, root)
     return out
 
 

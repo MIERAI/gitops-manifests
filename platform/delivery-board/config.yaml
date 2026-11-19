@@ -66,45 +66,10 @@ pipelines:
           prTitle: ^promote sample-app
           workflow: { file: promote.yml, inputs: { app: sample-app }, soakInput: soak }
 
-  # monorepo: one pipeline per service (storefront-web, storefront-api), each released and promoted on its own
-  - id: storefront
-    title: storefront
-    repo: MIERAI/storefront
-    services: [web, api]
+# Applications registered by an app.yaml in the manifests repository (e.g. storefront: web, api, worker): one pipeline
+# per service, nothing to configure here. Refreshed every 2 minutes.
+discover:
+  - repo: MIERAI/gitops-manifests
     push: { label: 提交 }
-    release:
-      name: release-$(service)                # runs only for changes under services/$(service)
-      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
-    defaults:
-      environment:
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/$(env)/kustomization.yaml, image: ghcr.io/mierai/storefront-$(service) }
-        argocd: { app: storefront-$(env) }
-        workload: { namespace: storefront-$(env), kind: Deployment, name: $(service), container: $(service) }
-      promotion:                              # one image at a time: the service
-        prTitle: ^promote storefront storefront-$(service) → $(env)$
-        workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-$(service), from: $(from), to: $(env) }, soakInput: soak }
-    environments:
-      - name: dev
-      - { name: staging, promotion: { from: dev, soak: 5m } }
-      - { name: prod, promotion: { from: staging, soak: 10m } }
-
-  # the third storefront service: a Helm chart with values per environment (same namespaces as web / api)
-  - id: storefront-worker
-    title: storefront · worker
-    repo: MIERAI/storefront
-    push: { label: 提交 }
-    release:
-      name: release-worker
-      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
-    defaults:
-      environment:
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront-worker/values-$(env).yaml, image: ghcr.io/mierai/storefront-worker }   # helm: {repository, tag}
-        argocd: { app: storefront-worker-$(env) }
-        workload: { namespace: storefront-$(env), kind: Deployment, name: worker, container: worker }
-      promotion:
-        prTitle: ^promote storefront-worker → $(env)$
-        workflow: { file: promote.yml, inputs: { app: storefront-worker, from: $(from), to: $(env) }, soakInput: soak }
-    environments:
-      - name: dev
-      - { name: staging, promotion: { from: dev, soak: 5m } }
-      - { name: prod, promotion: { from: staging, soak: 10m } }
+    jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
+    promotion: { workflow: promote.yml, soakInput: soak }

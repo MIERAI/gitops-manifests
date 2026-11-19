@@ -6,16 +6,33 @@ The desired state of every workload, per environment. Argo CD (installed by
 [infrastructure-live](https://github.com/MIERAI/infrastructure-live)) watches this repository and keeps the cluster in sync.
 **Changing the cluster = committing here.**
 
+## Add an application: one directory
+
+```
+<app>/app.yaml             the one place it is registered (example: storefront/app.yaml)
+<app>/<kustomize dir>/<env>/        a kustomize component, and/or
+<app>/<helm dir>/chart + values-<env>.yaml   a Helm component
+```
+
+Everything else follows from `app.yaml`: the Argo CD Applications (`apps/applications.yaml`, an ApplicationSet: one per
+component × environment, namespace `<name>-<env>`), the namespace labels (admission policies, image signatures when
+`signedImages`, the GHCR pull secret cloned by Kyverno), which file a promotion edits (`scripts/promote.sh`,
+`set-image.sh`), CI rendering (`scripts/render.py`) and the delivery board's pipelines. **Remove an application =
+remove its directory** (the workloads stay until their namespaces are deleted: the ApplicationSet preserves them).
+api-factory and sample-app predate this and are still listed in `apps/` one by one.
+
 ## Layout
 
 ```
-apps/                      Argo CD Applications (app of apps): <app>-<env>, automated sync + prune + self-heal
+apps/                      Argo CD Applications (app of apps): applications.yaml (every */app.yaml) + the older ones
 api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
 sample-app/base|overlays/  the public reference app
+storefront/                a monorepo app registered by app.yaml: web + api (kustomize), worker (Helm), dev → staging → prod
 scripts/set-image.sh       used by application CI (via the shared promote-dev workflow) to update a tag in dev
-scripts/promote.sh         copies the tags of one environment to another (used by the promote workflow)
-scripts/validate.sh        kustomize build + kubeconform for every overlay and Application (CI: validate)
+scripts/promote.sh         moves a version that ran in one environment to the next (soak, one image or all; promote workflow)
+scripts/render.py          renders every Application as Argo CD does (kustomize / Helm, incl. app.yaml ones)
+scripts/validate.sh        render + kubeconform + admission policies for every application (CI: validate)
 ```
 
 ## Changes and who makes them

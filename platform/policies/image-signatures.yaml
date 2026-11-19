@@ -1,22 +1,22 @@
 # Images from public app repos must carry a cosign keyless signature made by the shared build workflow on main
 # (gitops-platform-blueprint build-image.yml, sign: true). Private repos (api-factory) are not signed: signing would
 # publish the repository name in the public transparency log.
+# Scope: namespaces labelled gitops-platform/image-signatures=required (app.yaml signedImages: true → the
+# ApplicationSet sets it; older apps set it in their Application), every image of ours (ghcr.io/mierai/*) there.
 # failurePolicy stays Fail (default): if the signature cannot be checked (Sigstore / registry unreachable), new
-# sample-app Pods are rejected. Running Pods are not affected.
+# Pods are rejected. Running Pods are not affected.
 apiVersion: policies.kyverno.io/v1
 kind: ImageValidatingPolicy
 metadata: { name: verify-image-signatures }
 spec:
   validationActions: [Deny]
   matchConstraints:
-    namespaceSelector: { matchLabels: { gitops-platform/policies: enforced } }
+    namespaceSelector: { matchLabels: { gitops-platform/image-signatures: required } }
     resourceRules:
       - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
   matchImageReferences:   # tag and digest references (a digest-only reference must not bypass the check)
-    - glob: "ghcr.io/mierai/sample-app:*"
-    - glob: "ghcr.io/mierai/sample-app@*"
-    - glob: "ghcr.io/mierai/storefront-*:*"
-    - glob: "ghcr.io/mierai/storefront-*@*"
+    - glob: "ghcr.io/mierai/*:*"
+    - glob: "ghcr.io/mierai/*@*"
   validationConfigurations:
     required: true
     mutateDigest: false   # keep the Pod spec as in Git (Argo CD diff)

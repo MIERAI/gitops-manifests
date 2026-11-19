@@ -9,3 +9,4 @@ resources:
   - workload-baseline.yaml
   - image-signatures.yaml
   - exceptions.yaml
+  - ghcr-pull.yaml

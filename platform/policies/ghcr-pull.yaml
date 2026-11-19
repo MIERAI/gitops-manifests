@@ -1,0 +1,29 @@
+# The GHCR pull secret, cloned into every namespace labelled gitops-platform/ghcr-pull=true (the ApplicationSet sets
+# it from app.yaml; older apps in their Application). Source: secret ghcr-pull in namespace gitops-platform, written by
+# OpenTofu (infrastructure-live) — the only copy to rotate. Synchronized: edited or deleted copies are restored, a
+# changed source is propagated.
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
+metadata: { name: clone-ghcr-pull-secret }
+spec:
+  evaluation:
+    synchronize: { enabled: true }
+    generateExisting: { enabled: true }
+  matchConstraints:
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [namespaces] }
+    objectSelector: { matchLabels: { gitops-platform/ghcr-pull: "true" } }
+  variables:
+    - name: source
+      expression: resource.Get("v1", "secrets", "gitops-platform", "ghcr-pull")
+  generate:
+    - expression: generator.Apply(object.metadata.name, [variables.source])
+---
+# Kyverno's background controller creates the copies: allow it to manage Secrets (aggregated into its ClusterRole).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno:background-controller:secrets
+  labels: { rbac.kyverno.io/aggregate-to-background-controller: "true" }
+rules:
+  - { apiGroups: [""], resources: [secrets], verbs: [get, list, watch, create, update, patch, delete] }

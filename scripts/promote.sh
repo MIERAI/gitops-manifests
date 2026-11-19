@@ -10,13 +10,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 app=$1; from=${2:-dev}; to=${3:-prod}; version=${4:-}; soak=${5:-0}; image=${6:-}
-python3 -I - "$app" "$from" "$to" "$version" "$soak" "$image" <<'PY'
+python3 -P - "$app" "$from" "$to" "$version" "$soak" "$image" <<'PY'
 import subprocess, sys, time
 sys.path.insert(0, "scripts")
 import images as fmt
 app, frm, to, version, soak, image = sys.argv[1:7]
 soak = int(soak or 0)
-src, dst = fmt.env_file(app, frm), fmt.env_file(app, to)
+src, dst = fmt.env_file(app, frm, image or None), fmt.env_file(app, to, image or None)
 
 def images(text):
     found = fmt.read(src, text)  # [(image, tag)], in file order: the first one is the version
@@ -24,11 +24,14 @@ def images(text):
         found = [(n, t) for n, t in found if n == image]
     return found
 
-# history of the source overlay, newest first: (commit time, images)
-log = subprocess.run(["git", "log", "--format=%H %ct", "--", src], check=True, capture_output=True, text=True).stdout.split()
+# history of the source file, newest first: (commit time, images); --follow: across moves (the path at each commit)
+log = subprocess.run(["git", "log", "--follow", "--format=@%H %ct", "--name-only", "--", src], check=True,
+                     capture_output=True, text=True).stdout
 hist = []
-for sha, ct in zip(log[::2], log[1::2]):
-    text = subprocess.run(["git", "show", f"{sha}:{src}"], capture_output=True, text=True).stdout
+for entry in log.split("@")[1:]:
+    head, *names = entry.split()
+    sha, ct, path = head, names[0], names[-1]
+    text = subprocess.run(["git", "show", f"{sha}:{path}"], capture_output=True, text=True).stdout
     if images(text):
         hist.append((int(ct), images(text)))
 if not hist:
