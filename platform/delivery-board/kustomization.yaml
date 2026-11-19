@@ -1,4 +1,5 @@
-# Delivery board: every change to api-factory, from design PR to prod, on one page (laptop cluster only).
+# Delivery board (MIERAI/delivery-board): every change of api-factory and sample-app, from PR to prod, plus the
+# promotion gates, on one page (laptop cluster only). Pipelines: config.yaml.
 # http://<laptop>:30090 (Tailscale). Secret delivery-board-github (read-only GitHub token): infrastructure-live tofu,
 # namespace delivery-board created there too. No `namespace:` here: the RBAC lives in the namespaces it reads.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -7,4 +8,4 @@ resources: [deployment.yaml, rbac.yaml]
 configMapGenerator:
   - name: delivery-board
     namespace: delivery-board
-    files: [board.py]
+    files: [config.yaml]

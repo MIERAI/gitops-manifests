@@ -1,4 +1,6 @@
-# 升级: dev 正在用的版本 → prod。开 PR,人批准后合并 → Argo CD 同步 prod
+# 升级: dev 跑过的一个版本(默认: dev 现在的版本)→ prod。开 PR,人批准后合并 → Argo CD 同步 prod
+# 门槛(scripts/promote.sh,从 git 历史推算): 只接受在 dev 跑过的版本,且在 dev 连续运行 ≥ soak 分钟。回滚 = 选一个旧版本。
+# 交付看板(delivery-board)上的 Promote 按钮也是运行这个 workflow(另外还检查 dev 现在健康)
 name: promote
 on:
   workflow_dispatch:
@@ -9,6 +11,8 @@ on:
         options: [api-factory, sample-app]
       from: { description: 从, default: dev }
       to: { description: 到, default: prod }
+      version: { description: "版本(tag;空 = 从的环境现在的版本;回滚时填旧版本)", default: "" }
+      soak: { description: 在从的环境至少运行多少分钟, default: "10" }
 permissions:
   contents: write
   pull-requests: write
@@ -21,7 +25,10 @@ jobs:
         with: { fetch-depth: 0 }
       - name: 更新 tag
         id: tags
-        run: echo "tags=$(scripts/promote.sh '${{ inputs.app }}' '${{ inputs.from }}' '${{ inputs.to }}')" >> "$GITHUB_OUTPUT"
+        env: { APP: "${{ inputs.app }}", FROM: "${{ inputs.from }}", TO: "${{ inputs.to }}", VERSION: "${{ inputs.version }}", SOAK: "${{ inputs.soak }}" }
+        run: |   # assign first: a failed gate must fail the step (echo "$(…)" would hide the exit status)
+          tags=$(scripts/promote.sh "$APP" "$FROM" "$TO" "$VERSION" "$SOAK")
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
       - name: 校验(用 GITHUB_TOKEN 开的 PR 不会触发 validate,这里先跑)
         run: |
           sudo scripts/install-tools.sh

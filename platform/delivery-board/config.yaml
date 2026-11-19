@@ -1,0 +1,70 @@
+# Pipelines of the delivery board (MIERAI/delivery-board; format: its README). Mounted at /etc/delivery-board.
+title: 交付看板
+timezone: Asia/Tokyo
+interval: 30s
+maxRuns: 12
+
+pipelines:
+  - id: api-factory
+    title: api-factory
+    repo: MIERAI/api-factory
+    changes:
+      - label: 设计书
+        head: ^(design|review)/
+        title: ^design
+        items: ^design/[^/]+/([A-Z][A-Za-z0-9]+)\.yaml$       # one design file = one API
+        steps:
+          - { stage: 设计书, name: AI 审查, workflow: spec-pr, failureNeedsPerson: true, personNote: 有问题要回答 }
+          - { stage: 设计书, name: 设计书合并, merge: true }
+          - { stage: 生成, name: 生成, workflow: generate, jobs: { generate: 生成, "verify / verify": verify } }
+          - { stage: 生成, name: 生成 PR 合并, followPR: "^factory/gen-{sha7}$" }
+    push: { label: 工厂 }                                        # commits to main that are not a design change
+    release:
+      name: release
+      jobs: { "verify / verify": verify, "image-api / build": API 镜像, "image-schema / build": 迁移镜像, "promote / promote": 推送 dev }
+    environments:
+      - name: dev
+        url: http://100.90.245.89:30080
+        manifests: { repo: MIERAI/gitops-manifests, path: api-factory/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/api-factory }
+        argocd: { app: api-factory-dev }
+        workload: { namespace: api-factory-dev, kind: Deployment, name: api-factory, container: api }
+      - name: prod
+        url: http://100.90.245.89:30081
+        manifests: { repo: MIERAI/gitops-manifests, path: api-factory/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/api-factory }
+        argocd: { app: api-factory-prod }
+        workload: { namespace: api-factory-prod, kind: Deployment, name: api-factory, container: api }
+        promotion:
+          from: dev
+          soak: 10m
+          prTitle: ^promote api-factory
+          workflow: { file: promote.yml, inputs: { app: api-factory } }
+    try:
+      catalog: gen/api-catalog.json
+      env: dev
+      internalURL: http://api-factory.api-factory-dev.svc:8080
+      tokenEnv: DEV_TOKEN
+      curlToken: $(cat ~/workspace/gitops/infrastructure-live/.secrets/laptop/api-factory-dev.token)
+
+  - id: sample-app
+    title: sample-app
+    repo: MIERAI/sample-app
+    push: { label: 提交 }
+    release:
+      name: ci
+      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
+    environments:
+      - name: dev
+        url: http://100.90.245.89:30082
+        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/sample-app }
+        argocd: { app: sample-app-dev }
+        workload: { namespace: sample-app-dev, kind: Rollout, name: sample-app, container: app }
+      - name: prod
+        url: http://100.90.245.89:30083
+        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/sample-app }
+        argocd: { app: sample-app-prod }
+        workload: { namespace: sample-app-prod, kind: Rollout, name: sample-app, container: app }
+        promotion:
+          from: dev
+          soak: 10m
+          prTitle: ^promote sample-app
+          workflow: { file: promote.yml, inputs: { app: sample-app } }

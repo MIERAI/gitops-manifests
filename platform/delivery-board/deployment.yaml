@@ -8,25 +8,27 @@ spec:
     metadata: { labels: { app: delivery-board } }
     spec:
       serviceAccountName: delivery-board
+      imagePullSecrets: [{ name: ghcr-pull }]
       securityContext: { runAsNonRoot: true, runAsUser: 65534, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: board
-          image: python:3.13.17-alpine3.24
-          command: [python3, -I, -B, /app/board.py, "8080"]
+          image: ghcr.io/mierai/delivery-board:2a70e61   # MIERAI/delivery-board (commit)
+          args: [-config, /etc/delivery-board/config.yaml, -addr, ":8080"]
           env:
-            - { name: INTERVAL, value: "30" }
             - name: GITHUB_TOKEN
               valueFrom: { secretKeyRef: { name: delivery-board-github, key: token } }
             - name: DEV_TOKEN     # "try it": the delivered APIs' cases called live on dev (read API, dev only)
               valueFrom: { secretKeyRef: { name: delivery-board-github, key: dev_token } }
+            - name: PROMOTE_TOKEN # optional (empty: the Promote button links to the workflow instead of starting it)
+              valueFrom: { secretKeyRef: { name: delivery-board-github, key: promote_token, optional: true } }
           ports: [{ name: http, containerPort: 8080 }]
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { memory: 128Mi }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
-          volumeMounts: [{ name: app, mountPath: /app, readOnly: true }]
-      volumes: [{ name: app, configMap: { name: delivery-board } }]
+          volumeMounts: [{ name: config, mountPath: /etc/delivery-board, readOnly: true }]
+      volumes: [{ name: config, configMap: { name: delivery-board } }]
 ---
 apiVersion: v1
 kind: Service
