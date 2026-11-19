@@ -10,7 +10,7 @@ The desired state of every workload, per environment. Argo CD (installed by
 
 ```
 apps/                      Argo CD Applications (app of apps): <app>-<env>, automated sync + prune + self-heal
-api-factory/base/          Postgres (local only) → schema Job (Sync hook) → API → smoke Job (PostSync hook), ordered by sync waves
+api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
 sample-app/base|overlays/  the public reference app
 scripts/set-image.sh       used by application CI (via the shared promote-dev workflow) to update a tag in dev

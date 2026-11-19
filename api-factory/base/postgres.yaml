@@ -22,7 +22,7 @@ spec:
       database: factory
       owner: factory
       secret: { name: postgres-app }
-      postInitSQL:              # shards (FACTORY_SHARDS); tables come from the schema Job
+      postInitSQL:              # shards (FACTORY_SHARDS); tables come from the migrate init container (goose)
         - CREATE DATABASE shard_a OWNER factory
         - CREATE DATABASE shard_b OWNER factory
   plugins:

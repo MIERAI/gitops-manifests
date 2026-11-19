@@ -1,0 +1,13 @@
+# prod's daily restore check reads which migration image dev runs (the next release) and rehearses it on a restored
+# copy of prod (api-factory/components/restore-check): read access to this one Deployment, nothing else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: restore-check-candidate }
+rules:
+  - { apiGroups: [apps], resources: [deployments], resourceNames: [api-factory], verbs: [get] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: restore-check-candidate }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: restore-check-candidate }
+subjects: [{ kind: ServiceAccount, name: restore-check, namespace: api-factory-prod }]
