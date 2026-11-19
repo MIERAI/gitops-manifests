@@ -77,31 +77,38 @@ candidate=$(kubectl -n "${CANDIDATE_NAMESPACE:-api-factory-dev}" get deploy api-
 if [ -z "$candidate" ]; then log "– migration rehearsal skipped: no candidate image found"; exit 0; fi
 current=$(kubectl -n "$NS" get deploy api-factory -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="migrate")].image}')
 log "migration rehearsal: $candidate (prod runs $current)"
-kubectl -n "$NS" delete pod migrate-rehearsal --ignore-not-found --wait=true >/dev/null
+# a Job, not a bare Pod: the admission policies require a readiness probe on Pods that no Job owns
+kubectl -n "$NS" delete job migrate-rehearsal --ignore-not-found --wait=true >/dev/null
 kubectl -n "$NS" apply -f - >/dev/null <<YAML
-apiVersion: v1
-kind: Pod
-metadata: { name: migrate-rehearsal, labels: { app: migrate-rehearsal } }
+apiVersion: batch/v1
+kind: Job
+metadata: { name: migrate-rehearsal }
 spec:
-  restartPolicy: Never
-  imagePullSecrets: [{ name: ghcr-pull }]
-  securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
-  containers:
-    - name: migrate
-      image: $candidate
-      env:
-        - { name: PGHOST, value: $R-rw }
-        - { name: PGUSER, value: factory }
-        - name: PGPASSWORD
-          valueFrom: { secretKeyRef: { name: postgres-app, key: password } }   # restored: the same roles as prod
-      resources: { requests: { cpu: 50m, memory: 32Mi }, limits: { memory: 128Mi } }
-      securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: migrate
+          image: $candidate
+          env:
+            - { name: PGHOST, value: $R-rw }
+            - { name: PGUSER, value: factory }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-app, key: password } }   # restored: the same roles as prod
+          resources: { requests: { cpu: 50m, memory: 32Mi }, limits: { memory: 128Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
 YAML
-for _ in $(seq 1 720); do   # ≤ 60 min
-  p=$(kubectl -n "$NS" get pod migrate-rehearsal -o jsonpath='{.status.phase}')
-  case $p in Succeeded|Failed) break ;; esac; sleep 5
+p=""
+for _ in $(seq 1 740); do   # ≤ ~60 min
+  p=$(kubectl -n "$NS" get job migrate-rehearsal -o jsonpath='{.status.succeeded}{.status.failed}')
+  [ -n "$p" ] && break; sleep 5
 done
-kubectl -n "$NS" logs migrate-rehearsal | sed 's/^/    /'
-kubectl -n "$NS" delete pod migrate-rehearsal --wait=false >/dev/null
+kubectl -n "$NS" logs job/migrate-rehearsal | sed 's/^/    /'
+[ "$(kubectl -n "$NS" get job migrate-rehearsal -o jsonpath='{.status.succeeded}')" = 1 ] && p=Succeeded || p=Failed
+kubectl -n "$NS" delete job migrate-rehearsal --wait=false >/dev/null
 if [ "$p" = Succeeded ]; then log "✓ migration rehearsal: the next release's migrations apply on a copy of prod"
 else log "✗ migration rehearsal failed ($p): do not promote this version to prod"; exit 1; fi
