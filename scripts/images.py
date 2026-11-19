@@ -1,10 +1,11 @@
-"""Image tags in the manifests of an environment, for set-image.sh / promote.sh. Two layouts:
+"""Image tags in the manifests of an environment, for set-image.sh / promote.sh. Where they are:
 
-  kustomize  <app>/overlays/<env>/kustomization.yaml   images: [{name: <image>, newTag: <tag>}]
-  helm       <app>/values-<env>.yaml                   any mapping {repository: <image>, tag: <tag>} (the Helm chart
-                                                       convention; several images = several such mappings)
+  <app>/app.yaml       the component that deploys the image says (scripts/appdesc.py), else by convention:
+  kustomize            <app>/overlays/<env>/kustomization.yaml   images: [{name: <image>, newTag: <tag>}]
+  helm                 <app>/values-<env>.yaml                   any mapping {repository: <image>, tag: <tag>} (the Helm
+                                                                 chart convention; several images = several mappings)
 
-Edits change only the tag's line (comments and layout stay). Standard library only (CI runners have no PyYAML).
+Edits change only the tag's line (comments and layout stay): the files are edited as text, not re-serialized.
 """
 import os
 import re
@@ -13,8 +14,14 @@ import sys
 KUSTOMIZE = re.compile(r"- name: (\S+)\n\s+newTag: \"?([^\"\s]+)\"?")
 
 
-def env_file(app, env):
-    """The file that holds the image tags of <app> in <env>."""
+def env_file(app, env, image=None):
+    """The file that holds the image tags of <app> in <env> (image: which one, when the app has several components)."""
+    if os.path.exists(f"{app}/app.yaml"):
+        import appdesc
+        d = appdesc.load(app)
+        if env not in [e["name"] for e in d["environments"]]:
+            sys.exit(f"{app}/app.yaml: no environment {env}")
+        return appdesc.component_file(d, appdesc.component_of(d, image), env)
     k = f"{app}/overlays/{env}/kustomization.yaml"
     h = f"{app}/values-{env}.yaml"
     if os.path.exists(k):

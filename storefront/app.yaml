@@ -1,0 +1,22 @@
+# storefront: the one place this application is registered. Everything else is derived from this directory:
+#   Argo CD Applications  apps/applications.yaml (an ApplicationSet: one Application per component × environment)
+#   namespaces            <name>-<env>, created by Argo CD, labelled for the admission policies and the pull secret
+#   promotions            promote.yml / scripts/promote.sh (which file holds which image)
+#   delivery board        one pipeline per service
+# Remove the application = remove this directory (and its source repository).
+name: storefront
+repo: MIERAI/storefront          # its release workflows build the images and set them in dev
+signedImages: true               # images must be signed by the shared build workflow (public repository)
+environments:
+  - name: dev
+  - name: staging
+    promotion: { from: dev, soak: 5m }
+  - name: prod
+    promotion: { from: staging, soak: 10m }
+components:                      # how it is deployed: one Argo CD Application <component>-<env> each
+  - { name: storefront, kustomize: overlays }        # overlays/<env>/kustomization.yaml (web + api)
+  - { name: storefront-worker, helm: worker }        # worker/chart + worker/values-<env>.yaml
+services:                        # released (workflow release-<name>) and promoted (its image) on its own
+  - { name: web, image: ghcr.io/mierai/storefront-web, component: storefront }
+  - { name: api, image: ghcr.io/mierai/storefront-api, component: storefront }
+  - { name: worker, image: ghcr.io/mierai/storefront-worker, component: storefront-worker }

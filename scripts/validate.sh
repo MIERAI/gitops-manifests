@@ -24,15 +24,14 @@ for p in platform/*/; do echo "• $p"; kubectl kustomize "$p" > /dev/null; done
 echo "• admission policies"
 $KY test platform/policies/tests
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-# enforced namespaces = Applications that set the label through managedNamespaceMetadata
-python3 - apps/*.yaml > "$tmp/values.yaml" <<'PY'
-import re, sys
+# enforced namespaces: Applications that set the label (apps/*.yaml), and every app.yaml application
+python3 -I - > "$tmp/values.yaml" <<'PY'
+import sys
+sys.path.insert(0, "scripts")
+import render
 print("apiVersion: cli.kyverno.io/v1alpha1\nkind: Values\nnamespaceSelector:")
-for f in sys.argv[1:]:
-    s = open(f).read()
-    if "gitops-platform/policies: enforced" in s:
-        ns = re.search(r"destination:\s*\n(?:\s+\w+:.*\n)*?\s+namespace:\s*(\S+)", s).group(1)
-        print(f"  - {{ name: {ns}, labels: {{ gitops-platform/policies: enforced }} }}")
+for ns in sorted({a["namespace"] for a in render.apps() if a["enforced"]}):
+    print(f"  - {{ name: {ns}, labels: {{ gitops-platform/policies: enforced }} }}")
 PY
 args=()
 for a in "${APPS[@]}"; do python3 -I scripts/render.py render "$a" > "$tmp/$a.yaml"; args+=(--resource "$tmp/$a.yaml"); done

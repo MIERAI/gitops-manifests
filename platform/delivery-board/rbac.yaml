@@ -2,92 +2,17 @@ apiVersion: v1
 kind: ServiceAccount
 metadata: { name: delivery-board, namespace: delivery-board }
 ---
-# read the workloads (running version) in dev and prod, and their Argo CD Applications: nothing else
+# Read-only, cluster-wide: the running version of any workload and the state of any Argo CD Application, so an
+# application registered by an app.yaml needs no RBAC change here. Nothing else (no Secrets, no Pods, no writes).
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: api-factory-dev }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [api-factory], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: api-factory-dev }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: api-factory-prod }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [api-factory], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: api-factory-prod }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: argocd }
+kind: ClusterRole
+metadata: { name: delivery-board-read }
 rules:
-  - { apiGroups: [argoproj.io], resources: [applications], resourceNames: [api-factory-dev, api-factory-prod, sample-app-dev, sample-app-prod, storefront-dev, storefront-staging, storefront-prod, storefront-worker-dev, storefront-worker-staging, storefront-worker-prod], verbs: [get] }
+  - { apiGroups: [apps], resources: [deployments, statefulsets], verbs: [get] }
+  - { apiGroups: [argoproj.io], resources: [rollouts, applications], verbs: [get] }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: argocd }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: sample-app-dev }
-rules: [{ apiGroups: [argoproj.io], resources: [rollouts], resourceNames: [sample-app], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: sample-app-dev }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: sample-app-prod }
-rules: [{ apiGroups: [argoproj.io], resources: [rollouts], resourceNames: [sample-app], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: sample-app-prod }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: storefront-dev }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: storefront-dev }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: storefront-staging }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: storefront-staging }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
-subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: { name: delivery-board, namespace: storefront-prod }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: { name: delivery-board, namespace: storefront-prod }
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: delivery-board }
+kind: ClusterRoleBinding
+metadata: { name: delivery-board-read }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: delivery-board-read }
 subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-board }]

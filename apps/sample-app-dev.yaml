@@ -23,5 +23,5 @@ spec:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
     managedNamespaceMetadata:   # admission policies apply to namespaces with this label (platform/policies)
-      labels: { gitops-platform/policies: enforced }
+      labels: { gitops-platform/policies: enforced, gitops-platform/image-signatures: required, gitops-platform/ghcr-pull: "true" }
     retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
