@@ -1,12 +1,10 @@
 # Every Application (app of apps). The kind cluster's root app renders this directory; other clusters build on it
-# in clusters/<name> (e.g. clusters/laptop). New application: a directory with an app.yaml (see storefront/), nothing
-# here; the older applications below are still listed one by one.
+# in clusters/<name> (e.g. clusters/laptop). Applications are not listed here: each is a directory with an app.yaml
+# (applications.yaml turns them into Applications). Listed here: the platform.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - applications.yaml          # every <app>/app.yaml → its Applications (ApplicationSet)
-  - api-factory-dev.yaml
-  - api-factory-prod.yaml
   - platform-argo-rollouts.yaml
   - platform-cert-manager.yaml
   - platform-cnpg.yaml
@@ -14,5 +12,3 @@ resources:
   - platform-monitoring.yaml
   - platform-object-storage.yaml
   - platform-policies.yaml
-  - sample-app-dev.yaml
-  - sample-app-prod.yaml

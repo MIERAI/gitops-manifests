@@ -3,8 +3,9 @@
 #   component kustomize: <dir>  → path <app>/<dir>/<env>
 #   component helm: <dir>       → chart <app>/<dir>/chart, values <app>/<dir>/values-<env>.yaml
 # The namespace gets the labels the platform keys on: admission policies (enforced), the GHCR pull secret (cloned by
-# platform/policies/ghcr-pull.yaml), image signatures (when signedImages). scripts/render.py renders the same way
-# for validate.sh / diff.sh: keep both in step.
+# platform/policies/ghcr-pull.yaml), image signatures (when signedImages). ignoreDifferences (app.yaml) is passed
+# through, with RespectIgnoreDifferences. scripts/render.py renders the same way for validate.sh / diff.sh: keep both
+# in step.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -63,7 +64,13 @@ spec:
       {{- else }}
         path: "{{ .path.path }}/{{ .component.kustomize }}/{{ .env.name }}"
       {{- end }}
+      {{- if hasKey . "ignoreDifferences" }}
+      ignoreDifferences: {{ toJson .ignoreDifferences }}
+      {{- end }}
       syncPolicy:
+        {{- if hasKey . "ignoreDifferences" }}
+        syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
+        {{- end }}
         managedNamespaceMetadata:
           labels:
             gitops-platform/policies: enforced

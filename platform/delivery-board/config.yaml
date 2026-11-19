@@ -44,28 +44,6 @@ pipelines:
       tokenEnv: DEV_TOKEN
       curlToken: $(cat ~/workspace/gitops/infrastructure-live/.secrets/laptop/api-factory-dev.token)
 
-  - id: sample-app
-    title: sample-app
-    repo: MIERAI/sample-app
-    push: { label: 提交 }
-    release:
-      name: ci
-      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
-    defaults:
-      environment:
-        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/$(env)/kustomization.yaml, image: ghcr.io/mierai/sample-app }
-        argocd: { app: sample-app-$(env) }
-        workload: { namespace: sample-app-$(env), kind: Rollout, name: sample-app, container: app }
-    environments:
-      - { name: dev, url: "http://100.90.245.89:30082" }
-      - name: prod
-        url: http://100.90.245.89:30083
-        promotion:
-          from: dev
-          soak: 10m
-          prTitle: ^promote sample-app
-          workflow: { file: promote.yml, inputs: { app: sample-app }, soakInput: soak }
-
 # Applications registered by an app.yaml in the manifests repository (e.g. storefront: web, api, worker): one pipeline
 # per service, nothing to configure here. Refreshed every 2 minutes.
 discover:
