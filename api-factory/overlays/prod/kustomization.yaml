@@ -26,6 +26,16 @@ patches:
       - op: replace
         path: /spec/storage/size
         value: 20Gi
+      # sized for the production-like volume (≈5 GB, 3 databases): with 512Mi the first load test OOM-killed the
+      # primary (16 concurrent requests, ~70 backends from the API pools + parallel workers). Pools are capped too
+      # (pool_max_conns=8 per database and pod, infrastructure-live tofu).
+      - op: replace
+        path: /spec/resources
+        value: { requests: { cpu: 500m, memory: 1Gi }, limits: { memory: 2Gi } }
+      - op: add
+        path: /spec/postgresql
+        value:
+          parameters: { shared_buffers: 512MB, effective_cache_size: 1536MB, work_mem: 8MB, max_parallel_workers_per_gather: "1" }
   - target: { kind: Service, name: api-factory }
     patch: |-
       - op: replace
