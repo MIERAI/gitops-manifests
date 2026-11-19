@@ -17,6 +17,8 @@ spec:
             - { name: INTERVAL, value: "30" }
             - name: GITHUB_TOKEN
               valueFrom: { secretKeyRef: { name: delivery-board-github, key: token } }
+            - name: DEV_TOKEN     # "try it": the delivered APIs' cases called live on dev (read API, dev only)
+              valueFrom: { secretKeyRef: { name: delivery-board-github, key: dev_token } }
           ports: [{ name: http, containerPort: 8080 }]
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
           resources:
