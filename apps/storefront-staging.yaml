@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storefront-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: storefront/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: storefront-staging
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    managedNamespaceMetadata:   # admission policies apply to namespaces with this label (platform/policies)
+      labels: { gitops-platform/policies: enforced }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

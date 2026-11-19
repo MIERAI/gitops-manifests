@@ -1,4 +1,4 @@
-# Delivery board (MIERAI/delivery-board): every change of api-factory and sample-app, from PR to prod, plus the
+# Delivery board (MIERAI/delivery-board): every change of api-factory, sample-app and storefront (web, api), from PR to prod, plus the
 # promotion gates, on one page (laptop cluster only). Pipelines: config.yaml.
 # http://<laptop>:30090 (Tailscale). Secret delivery-board-github (read-only GitHub token): infrastructure-live tofu,
 # namespace delivery-board created there too. No `namespace:` here: the RBAC lives in the namespaces it reads.

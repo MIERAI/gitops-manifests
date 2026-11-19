@@ -8,11 +8,12 @@ on:
       app:
         description: 应用
         type: choice
-        options: [api-factory, sample-app]
+        options: [api-factory, sample-app, storefront]
       from: { description: 从, default: dev }
       to: { description: 到, default: prod }
       version: { description: "版本(tag;空 = 从的环境现在的版本;回滚时填旧版本)", default: "" }
       soak: { description: 在从的环境至少运行多少分钟, default: "10" }
+      image: { description: "只搬这一个镜像(monorepo 的一个服务,如 ghcr.io/mierai/storefront-web;空 = 全部一起)", default: "" }
 permissions:
   contents: write
   pull-requests: write
@@ -25,25 +26,35 @@ jobs:
         with: { fetch-depth: 0 }
       - name: 更新 tag
         id: tags
-        env: { APP: "${{ inputs.app }}", FROM: "${{ inputs.from }}", TO: "${{ inputs.to }}", VERSION: "${{ inputs.version }}", SOAK: "${{ inputs.soak }}" }
+        env: { APP: "${{ inputs.app }}", FROM: "${{ inputs.from }}", TO: "${{ inputs.to }}", VERSION: "${{ inputs.version }}", SOAK: "${{ inputs.soak }}", IMAGE: "${{ inputs.image }}" }
         run: |   # assign first: a failed gate must fail the step (echo "$(…)" would hide the exit status)
-          tags=$(scripts/promote.sh "$APP" "$FROM" "$TO" "$VERSION" "$SOAK")
+          tags=$(scripts/promote.sh "$APP" "$FROM" "$TO" "$VERSION" "$SOAK" "$IMAGE")
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
       - name: 校验(用 GITHUB_TOKEN 开的 PR 不会触发 validate,这里先跑)
         run: |
           sudo scripts/install-tools.sh
           scripts/validate.sh
       - name: 开 PR
-        env: { GH_TOKEN: "${{ github.token }}" }
+        env:   # inputs via env, never interpolated into the script
+          GH_TOKEN: "${{ github.token }}"
+          APP: "${{ inputs.app }}"
+          FROM: "${{ inputs.from }}"
+          TO: "${{ inputs.to }}"
+          IMAGE: "${{ inputs.image }}"
+          TAGS: "${{ steps.tags.outputs.tags }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
         run: |
           if git diff --quiet; then echo "已经是同一个版本"; exit 0; fi
-          branch="promote/${{ inputs.app }}-${{ inputs.to }}-${{ github.run_id }}"
+          # the title names the image when one service of a monorepo moves (the delivery board matches it)
+          what="$APP${IMAGE:+ ${IMAGE##*/}}"
+          branch="promote/$APP-$TO-$RUN_ID"
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"; git commit -am "promote ${{ inputs.app }} ${{ inputs.from }} → ${{ inputs.to }}: ${{ steps.tags.outputs.tags }}"
+          git checkout -b "$branch"; git commit -am "promote $what $FROM → $TO: $TAGS"
           git push origin "$branch"
-          { echo "Promote the version running in ${{ inputs.from }} to ${{ inputs.to }}: \`${{ steps.tags.outputs.tags }}\`. Merging lets Argo CD sync ${{ inputs.to }}."; echo; scripts/diff.sh origin/main; } > body.md
+          { echo "Promote the version running in $FROM to $TO: \`$TAGS\`. Merging lets Argo CD sync $TO."; echo; scripts/diff.sh origin/main; } > body.md
           # the validation above ran on exactly this commit: report it as the required "validate" check
-          gh api "repos/${{ github.repository }}/statuses/$(git rev-parse HEAD)" -f state=success -f context=validate \
+          gh api "repos/$REPO/statuses/$(git rev-parse HEAD)" -f state=success -f context=validate \
             -f description="scripts/validate.sh passed in the promote workflow" >/dev/null
-          url=$(gh pr create --base main --head "$branch" --title "promote ${{ inputs.app }} → ${{ inputs.to }}" --body-file body.md)
+          url=$(gh pr create --base main --head "$branch" --title "promote $what → $TO" --body-file body.md)
           echo "$url"

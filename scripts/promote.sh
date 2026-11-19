@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 # 环境之间的升级: 把 <app> 在 <from> 跑过的一个版本搬到 <to>。只改 kustomization.yaml 的 images(PR 由 workflow 开)
-#   usage: scripts/promote.sh <app> [from=dev] [to=prod] [version=<from> 现在的版本] [soak 分钟=0]
-# 版本 = <from> 第一个镜像的 tag。只接受在 <from> 跑过的版本(回滚也一样: 选一个旧版本);它在 <from> 连续运行的时间
-# (从到达到被替换,或到现在)要 ≥ soak。所有镜像一起搬: 用 <from> 跑这个版本时的那一组 tag(如 api + 迁移镜像)。
+#   usage: scripts/promote.sh <app> [from=dev] [to=prod] [version=<from> 现在的版本] [soak 分钟=0] [image]
+# 版本 = <from> 第一个镜像的 tag(给了 image: 那个镜像的 tag)。只接受在 <from> 跑过的版本(回滚也一样: 选一个旧版本);
+# 它在 <from> 连续运行的时间(从到达到被替换,或到现在)要 ≥ soak。
+# 搬哪些镜像: 默认全部一起,用 <from> 跑这个版本时的那一组 tag(如 api-factory 的 api + 迁移镜像);给了 image 只搬它
+# (monorepo 里各自发布的服务,如 storefront 的 web / api)。
 # 全部从 git 历史推算(需要完整历史: actions/checkout fetch-depth 0)。输出: 搬过去的 <镜像>:<tag> ...
 set -euo pipefail
 cd "$(dirname "$0")/.."
-app=$1; from=${2:-dev}; to=${3:-prod}; version=${4:-}; soak=${5:-0}
+app=$1; from=${2:-dev}; to=${3:-prod}; version=${4:-}; soak=${5:-0}; image=${6:-}
 src=$app/overlays/$from/kustomization.yaml; dst=$app/overlays/$to/kustomization.yaml
-python3 - "$src" "$dst" "$version" "$soak" <<'PY'
+python3 - "$src" "$dst" "$version" "$soak" "$image" <<'PY'
 import re, subprocess, sys, time
-src, dst, version, soak = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4] or 0)
+src, dst, version, soak, image = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4] or 0), sys.argv[5]
 IMG = re.compile(r"- name: (\S+)\n\s+newTag: \"?([^\"\s]+)\"?")
 
 def images(text):
-    return IMG.findall(text)  # [(image, tag)], in file order: the first one is the version
+    found = IMG.findall(text)  # [(image, tag)], in file order: the first one is the version
+    if image:  # only that image (its tag is the version)
+        found = [(n, t) for n, t in found if n == image]
+    return found
 
 # history of the source overlay, newest first: (commit time, images)
 log = subprocess.run(["git", "log", "--format=%H %ct", "--", src], check=True, capture_output=True, text=True).stdout.split()
@@ -24,7 +29,7 @@ for sha, ct in zip(log[::2], log[1::2]):
     if images(text):
         hist.append((int(ct), images(text)))
 if not hist:
-    sys.exit(f"{src}: no history")
+    sys.exit(f"{src}: no history" + (f" of image {image}" if image else ""))
 version = version or hist[0][1][0][1]
 # the newest unbroken stretch in which the source ran the version
 idx = [i for i, (_, imgs) in enumerate(hist) if imgs[0][1] == version]

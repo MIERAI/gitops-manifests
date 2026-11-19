@@ -15,6 +15,8 @@ spec:
   matchImageReferences:   # tag and digest references (a digest-only reference must not bypass the check)
     - glob: "ghcr.io/mierai/sample-app:*"
     - glob: "ghcr.io/mierai/sample-app@*"
+    - glob: "ghcr.io/mierai/storefront-*:*"
+    - glob: "ghcr.io/mierai/storefront-*@*"
   validationConfigurations:
     required: true
     mutateDigest: false   # keep the Pod spec as in Git (Argo CD diff)
