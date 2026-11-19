@@ -1,0 +1,10 @@
+# dev: each service's release workflow sets its own image (MIERAI/storefront release-web / release-api)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: storefront-dev
+resources: [../../base]
+images:
+  - name: ghcr.io/mierai/storefront-web
+    newTag: "0933e33"
+  - name: ghcr.io/mierai/storefront-api
+    newTag: "0933e33"
