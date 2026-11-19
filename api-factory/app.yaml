@@ -1,0 +1,16 @@
+# api-factory: registered here (format and what follows from it: storefront/app.yaml). Private repository: images
+# not signed (signing would publish its name in the public transparency log). Its runtime secrets (database, API
+# token, backups) are written by OpenTofu (infrastructure-live), which therefore still creates its namespaces.
+# The delivery board configures this pipeline itself (design PRs, "try it"): its config entry wins over discovery.
+name: api-factory
+repo: MIERAI/api-factory
+signedImages: false
+environments:
+  - { name: dev, url: "http://100.90.245.89:30080" }
+  - name: prod
+    url: http://100.90.245.89:30081
+    promotion: { from: dev, soak: 10m }
+components:
+  - { name: api-factory, kustomize: overlays }   # overlays/<env>: the API + its migration image (moved together)
+services:
+  - { name: api, image: ghcr.io/mierai/api-factory, component: api-factory, workload: { name: api-factory, container: api } }

@@ -29,14 +29,16 @@ def all_apps(root="."):
 
 
 def component_of(d, image):
-    """The component that deploys image (by the services list; a single component needs no image)."""
+    """The component that deploys image: by the services list, else the only component (which then also holds the
+    images that are not a service of their own, e.g. api-factory's migration image next to its API)."""
     if image:
         for s in d.get("services", []):
             if s["image"] == image:
                 return next(c for c in d["components"] if c["name"] == s["component"])
-        sys.exit(f"{d['dir']}/app.yaml: no service with image {image}")
     if len(d["components"]) == 1:
         return d["components"][0]
+    if image:
+        sys.exit(f"{d['dir']}/app.yaml: no service with image {image}")
     sys.exit(f"{d['dir']}/app.yaml: several components, name the image")
 
 

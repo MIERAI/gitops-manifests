@@ -19,12 +19,12 @@ component × environment, namespace `<name>-<env>`), the namespace labels (admis
 `signedImages`, the GHCR pull secret cloned by Kyverno), which file a promotion edits (`scripts/promote.sh`,
 `set-image.sh`), CI rendering (`scripts/render.py`) and the delivery board's pipelines. **Remove an application =
 remove its directory** (the workloads stay until their namespaces are deleted: the ApplicationSet preserves them).
-api-factory and sample-app predate this and are still listed in `apps/` one by one.
+Every application is registered this way: api-factory, sample-app, storefront.
 
 ## Layout
 
 ```
-apps/                      Argo CD Applications (app of apps): applications.yaml (every */app.yaml) + the older ones
+apps/                      Argo CD Applications (app of apps): applications.yaml (every */app.yaml) + the platform
 api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
 sample-app/base|overlays/  the public reference app

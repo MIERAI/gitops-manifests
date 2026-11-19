@@ -1,0 +1,19 @@
+# sample-app: registered here (format and what follows from it: storefront/app.yaml). Canary releases (Argo Rollouts).
+name: sample-app
+repo: MIERAI/sample-app
+signedImages: true
+environments:
+  - { name: dev, url: "http://100.90.245.89:30082" }
+  - name: prod
+    url: http://100.90.245.89:30083
+    promotion: { from: dev, soak: 10m }
+components:
+  - { name: sample-app, kustomize: overlays }
+services:
+  - { name: sample-app, image: ghcr.io/mierai/sample-app, component: sample-app, release: ci,
+      workload: { kind: Rollout, name: sample-app, container: app } }
+# Argo Rollouts adds rollouts-pod-template-hash to the stable/canary Service selectors during a rollout. Without this,
+# self-heal reverts it: the canary Service then also selects stable pods and the analysis can pass by hitting healthy
+# stable pods (seen in the fault injection demo).
+ignoreDifferences:
+  - { group: "", kind: Service, jqPathExpressions: ['.spec.selector["rollouts-pod-template-hash"]'] }
