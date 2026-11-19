@@ -1,22 +1,20 @@
-"""Delivery board: where every change to api-factory is now, from design PR to prod.
+"""Delivery board: every delivery of api-factory as a run, like a CI build history, from design PR to prod.
 
-A change goes through 3 repositories and the cluster; nothing else shows the whole chain:
-  1 design PR (api-factory design/*)   AI review → answers → merged
-  2 generated PR (factory/gen-<sha>)   generate → verify → merged      (merge commit M = the release)
-  3 release (workflow on main, M)       build images → dev tag in gitops-manifests
-  4 dev  (this cluster)                 Argo CD sync → running a version that contains M
-  5 promote PR (gitops-manifests)       dev → prod, merged by a person
-  6 prod (this cluster)                 running a version that contains M
-Commits pushed straight to main (factory code) start at 3. "Contains M" = the running tag is M or a later commit
-(GitHub compare API, cached).
+A run is one design PR (design → generate → release → dev → promote → prod) or one commit pushed straight to main
+(release → dev → promote → prod). The list page shows one row per run; /run/<id> shows its steps as a flow graph
+(done green, running animated, waiting for a person orange, failed red).
 
-GET /          the board (HTML, refreshes itself)
-GET /metrics   delivery_change_stage{change, stage} (0 waiting, 1 running, 2 done, -1 failed, -2 needs a person)
-GET /healthz
-Env: GITHUB_TOKEN (fine-grained, read-only: Actions, Contents, Pull requests on api-factory + gitops-manifests), APP_REPO, MANIFESTS_REPO,
-K8S_API (default in-cluster), INTERVAL (s). Standard library only.
+Where the steps come from (all read-only):
+  GitHub, APP repo:       design PR (spec-pr runs = AI review rounds, merge), generate run, generated PR (verify, merge),
+                          release run and its jobs (verify, images, push to dev)
+  GitHub, MANIFESTS repo: commits of overlays/dev and overlays/prod (when a version reached dev / prod)
+  this cluster:           Argo CD sync / health and the running version of dev and prod
+"Contains commit M" = the running tag is M or a later commit of main (order of main's commit list).
+
+GET / (list)  GET /run/<id>  GET /metrics  GET /healthz.  Env: GITHUB_TOKEN (fine-grained read-only: Actions,
+Contents, Pull requests), APP_REPO, MANIFESTS_REPO, K8S_API (local dev: kubectl proxy), INTERVAL. Standard library only.
 """
-import datetime, html, json, os, re, ssl, sys, threading, time, urllib.error, urllib.request
+import base64, datetime, html, json, os, re, ssl, sys, threading, time, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 APP = os.environ.get("APP_REPO", "MIERAI/api-factory")
@@ -25,11 +23,13 @@ INTERVAL = int(os.environ.get("INTERVAL", "30"))
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 TZ = datetime.timezone(datetime.timedelta(hours=9))
 SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+MAX_RUNS = 12
 
-state = {"rows": [], "envs": {}, "updated": None, "error": ""}
-_contains = {}  # (commit, tag) → bool: commits never change
+state = {"runs": [], "envs": {}, "updated": None, "error": ""}
+cache = {}  # immutable GitHub objects (files of a merged PR, file content at a commit, jobs of a finished run)
 
 
+# ── sources ────────────────────────────────────────────────────────────────────────────────────────────────────────
 def gh(path):
     req = urllib.request.Request("https://api.github.com/" + path, headers={
         "Authorization": "Bearer " + TOKEN, "Accept": "application/vnd.github+json", "User-Agent": "delivery-board"})
@@ -37,206 +37,361 @@ def gh(path):
         return json.loads(r.read())
 
 
+def gh_cached(path, final=True):
+    if path in cache:
+        return cache[path]
+    v = gh(path)
+    if final:
+        cache[path] = v
+    return v
+
+
 def k8s(path):
     base = os.environ.get("K8S_API")
-    if base:  # local development: kubectl proxy
+    if base:
         req, ctx = urllib.request.Request(base + path), None
     else:
-        tok = open(SA + "/token").read()
-        req = urllib.request.Request("https://kubernetes.default.svc" + path, headers={"Authorization": "Bearer " + tok})
+        req = urllib.request.Request("https://kubernetes.default.svc" + path,
+                                     headers={"Authorization": "Bearer " + open(SA + "/token").read()})
         ctx = ssl.create_default_context(cafile=SA + "/ca.crt")
     with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
         return json.loads(r.read())
 
 
-def contains(commit, tag):
-    """True if tag (a commit of APP) is commit or comes after it."""
-    if not commit or not tag:
-        return False
-    if commit.startswith(tag) or tag.startswith(commit[:7]):
-        return True
-    key = (commit, tag)
-    if key not in _contains:
-        try:
-            st = gh(f"repos/{APP}/compare/{commit}...{tag}")["status"]
-            _contains[key] = st in ("ahead", "identical")
-        except urllib.error.HTTPError:
-            return False  # unknown tag (yet): not cached
-    return _contains[key]
+def ts(s):
+    return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
 
 
 def env_state(ns):
-    """Version the API runs in a namespace + Argo CD status of its Application."""
-    out = {"tag": "", "sync": "?", "health": "?", "op": ""}
+    out = {"tag": "", "sync": "?", "health": "?", "synced_at": None}
     try:
         d = k8s(f"/apis/apps/v1/namespaces/{ns}/deployments/api-factory")
         img = next(c["image"] for c in d["spec"]["template"]["spec"]["containers"] if c["name"] == "api")
         out["tag"] = img.rsplit(":", 1)[-1]
-        out["ready"] = d.get("status", {}).get("updatedReplicas") == d["spec"]["replicas"] == d.get("status", {}).get("readyReplicas")
+        st = d.get("status", {})
+        out["ready"] = st.get("updatedReplicas") == d["spec"]["replicas"] == st.get("readyReplicas")
     except Exception as e:
         out["error"] = str(e)[:80]
     try:
         a = k8s(f"/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/{ns}")["status"]
         out["sync"], out["health"] = a.get("sync", {}).get("status", "?"), a.get("health", {}).get("status", "?")
-        out["op"] = a.get("operationState", {}).get("phase", "")
+        out["synced_at"] = ts(a.get("operationState", {}).get("finishedAt"))
     except Exception as e:
         out["error"] = str(e)[:80]
     return out
 
 
-def checks(sha):
-    """Workflow runs of a commit (PR checks): (running, failed). Actions API: a fine-grained token has no Checks
-    permission (GitHub Apps only), Actions read is enough."""
-    runs = gh(f"repos/{APP}/actions/runs?head_sha={sha}&per_page=20").get("workflow_runs", [])
-    latest = {}
-    for r in runs:  # newest first: the latest run of each workflow counts (re-runs)
-        latest.setdefault(r["name"], r)
-    running = [n for n, r in latest.items() if r["status"] != "completed"]
-    failed = [n for n, r in latest.items() if r["conclusion"] in ("failure", "timed_out", "cancelled")]
-    return running, failed
+# ── model ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+class Step:
+    def __init__(self, stage, name, status="waiting", start=None, end=None, url="", note=""):
+        self.stage, self.name, self.status, self.start, self.end, self.url, self.note = stage, name, status, start, end, url, note
+
+
+def run_status(r):
+    if r.status == "completed":
+        return "done" if r.conclusion == "success" else ("skip" if r.conclusion == "skipped" else "failed")
+    return "running"
+
+
+def wf(run, stage, name):
+    if not run:
+        return Step(stage, name)
+    return Step(stage, name, run_status(Obj(run)), ts(run.get("run_started_at") or run["created_at"]),
+                ts(run["updated_at"]) if run["status"] == "completed" else None, run["html_url"])
+
+
+class Obj(dict):
+    __getattr__ = dict.get
+
+
+def job_steps(run, stage, names, fallback):
+    """Steps from the jobs of a workflow run (names: job name → step name)."""
+    if not run:
+        return [Step(stage, fallback)]
+    jobs = gh_cached(f"repos/{APP}/actions/runs/{run['id']}/jobs?per_page=30", run["status"] == "completed")["jobs"]
+    out = []
+    for j in jobs:
+        if j["name"] in names:
+            st = "running" if j["status"] != "completed" else ("done" if j["conclusion"] == "success" else (
+                "skip" if j["conclusion"] == "skipped" else "failed"))
+            out.append(Step(stage, names[j["name"]], st, ts(j["started_at"]), ts(j["completed_at"]), j["html_url"]))
+    return out or [wf(run, stage, fallback)]
+
+
+def release_steps(sha, releases):
+    r = releases.get(sha)
+    if not r:
+        return [Step("release", "release")]
+    final = r["status"] == "completed"
+    jobs = gh_cached(f"repos/{APP}/actions/runs/{r['id']}/jobs?per_page=30", final)["jobs"]
+    names = {"verify / verify": "verify", "image-api / build": "API 镜像", "image-schema / build": "迁移镜像",
+             "promote / promote": "推送 dev"}
+    out = []
+    for j in jobs:
+        if j["name"] not in names:
+            continue
+        st = "running" if j["status"] != "completed" else ("done" if j["conclusion"] == "success" else "failed")
+        out.append(Step("release", names[j["name"]], st, ts(j["started_at"]), ts(j["completed_at"]), j["html_url"]))
+    return out or [wf(r, "release", "release")]
+
+
+def env_history(path):
+    """Versions a kustomization went through: [(time, tag, commit url)], oldest first."""
+    out = []
+    for c in gh(f"repos/{MANIFESTS}/commits?path={path}&per_page=40"):
+        content = gh_cached(f"repos/{MANIFESTS}/contents/{path}?ref={c['sha']}")
+        text = base64.b64decode(content["content"]).decode()
+        m = re.search(r'name: ghcr.io/mierai/api-factory\n\s+newTag: "?([0-9a-f]+)"?', text)
+        if m:
+            out.append((ts(c["commit"]["committer"]["date"]), m.group(1), c["html_url"]))
+    return sorted(out)
 
 
 def collect():
+    main = gh(f"repos/{APP}/commits?sha=main&per_page=100")
+    pos = {c["sha"][:7]: i for i, c in enumerate(main)}  # 0 = newest
+
+    def contains(commit, tag):
+        a, b = pos.get(commit[:7]), pos.get(tag[:7])
+        return a is not None and b is not None and b <= a
+
     pulls = gh(f"repos/{APP}/pulls?state=all&per_page=40&sort=created&direction=desc")
-    runs = gh(f"repos/{APP}/actions/runs?branch=main&event=push&per_page=40")["workflow_runs"]
-    releases = {}  # head sha → latest release run
-    for r in runs:
-        if r["name"] == "release" and r["head_sha"] not in releases:
-            releases[r["head_sha"]] = r
-    gens = {}  # design merge sha[:7] → generated PR
+    runs = gh(f"repos/{APP}/actions/runs?per_page=100")["workflow_runs"]
+    by_sha = {}
+    for r in runs:  # newest first: the first run of a workflow for a commit is its latest
+        by_sha.setdefault((r["name"], r["head_sha"]), r)
+    releases = {sha: r for (n, sha), r in by_sha.items() if n == "release"}
+    gens = {}
     for p in pulls:
         m = re.match(r"factory/gen-([0-9a-f]{7})", p["head"]["ref"])
-        if m and m.group(1) not in gens:
-            gens[m.group(1)] = p
-    promotes = [p for p in gh(f"repos/{MANIFESTS}/pulls?state=all&per_page=20") if p["title"].startswith("promote api-factory")]
-    envs = {ns: env_state(ns) for ns in ("api-factory-dev", "api-factory-prod")}
+        if m:
+            gens.setdefault(m.group(1), p)
+    envs = {"dev": env_state("api-factory-dev"), "prod": env_state("api-factory-prod")}
+    hist = {"dev": env_history("api-factory/overlays/dev/kustomization.yaml"),
+            "prod": env_history("api-factory/overlays/prod/kustomization.yaml")}
+    promote_open = [p for p in gh(f"repos/{MANIFESTS}/pulls?state=open&per_page=10") if p["title"].startswith("promote api-factory")]
 
-    rows = []
-    designs = [p for p in pulls if not p["head"]["ref"].startswith(("factory/gen-", "dependabot/"))][:8]
-    used = set()
-    for p in designs:
-        row = {"title": f'#{p["number"]} {p["title"]}', "url": p["html_url"], "when": p["created_at"], "stages": {}}
-        s = row["stages"]
-        if p["state"] == "open":
-            running, failed = checks(p["head"]["sha"])
-            s["design"] = ("running", "AI 审查中") if running else (("person", "有要回答的问题") if failed else ("person", "等合并"))
-        elif not p["merged_at"]:
-            s["design"] = ("closed", "已关闭(未合并)")
-            rows.append(row)
-            continue
-        else:
-            s["design"] = ("done", "已合并")
-            g = gens.get(p["merge_commit_sha"][:7])
-            if not g and any(contains(p["merge_commit_sha"], e["tag"]) for e in envs.values()):
-                # regenerated later (manual run, another base): shipped with a later release
-                s["gen"] = ("done", "随后续生成")
-                row["commit"] = p["merge_commit_sha"]
-            elif not g:
-                gen_run = next((r for r in gh(f"repos/{APP}/actions/runs?event=push&head_sha={p['merge_commit_sha']}")["workflow_runs"] if r["name"] == "generate"), None)
-                s["gen"] = ("running", "生成中") if gen_run and gen_run["status"] != "completed" else (("failed", "生成失败") if gen_run and gen_run["conclusion"] == "failure" else ("waiting", "等生成"))
-            elif g["state"] == "open":
-                running, failed = checks(g["head"]["sha"])
-                s["gen"] = ("running", "verify 中") if running else (("failed", "verify 失败") if failed else ("person", "等合并"))
-                row["gen_url"] = g["html_url"]
-            elif g["merged_at"]:
-                s["gen"] = ("done", "已合并")
-                row["gen_url"] = g["html_url"]
-                row["commit"] = g["merge_commit_sha"]
-            else:
-                s["gen"] = ("closed", "已关闭")
-        rows.append(row)
-        if row.get("commit"):
-            used.add(row["commit"])
-    # commits pushed straight to main (factory code, docs) that have a release
-    for sha, r in list(releases.items())[:8]:
-        if sha in used:
-            continue
-        rows.append({"title": r["display_title"][:90], "url": r["html_url"], "when": r["created_at"], "commit": sha,
-                     "stages": {"design": ("skip", "—"), "gen": ("skip", "直接推 main")}})
-    for row in rows:
-        c, s = row.get("commit"), row["stages"]
-        if not c:
-            continue
-        r = releases.get(c)
-        shipped = any(contains(c, e["tag"]) for e in envs.values())
-        s["release"] = (("done", "随后续 release") if shipped else ("waiting", "等 release")) if not r else (("running", "构建中") if r["status"] != "completed" else (("done", "已发布") if r["conclusion"] == "success" else ("failed", f"release {r['conclusion']}")))
-        row["release_url"] = r["html_url"] if r else ""
-        for env, key in (("api-factory-dev", "dev"), ("api-factory-prod", "prod")):
+    def delivery(sha, steps):
+        """dev / promote / prod steps for main commit sha."""
+        for env in ("dev", "prod"):
+            first = next(((t, tag, url) for t, tag, url in hist[env] if contains(sha, tag)), None)
+            if env == "prod":
+                if first:
+                    steps.append(Step("promote", "promote PR", "done", end=first[0], url=first[2]))
+                elif steps[-1].status == "done":
+                    pr = promote_open[0] if promote_open else None
+                    steps.append(Step("promote", "promote PR", "person", note=f"#{pr['number']} 等合并" if pr else "等 promote",
+                                      url=pr["html_url"] if pr else f"https://github.com/{MANIFESTS}/actions/workflows/promote.yml"))
+                else:
+                    steps.append(Step("promote", "promote PR"))
             e = envs[env]
-            if contains(c, e["tag"]):
-                ok = e.get("ready") and e["health"] == "Healthy"
-                s[key] = ("done", f"已上线 {e['tag']}") if ok else ("running", f"部署中 {e['tag']}")
-            elif key == "dev":
-                s[key] = ("running", "同步中") if s["release"][0] == "done" else ("waiting", "")
-        if s.get("dev", ("",))[0] == "done" and "prod" not in s:
-            pr = next((p for p in promotes if p["state"] == "open"), None)
-            s["promote"] = ("person", f"promote PR #{pr['number']} 等合并") if pr else ("person", "等 promote")
-            row["promote_url"] = pr["html_url"] if pr else f"https://github.com/{MANIFESTS}/actions/workflows/promote.yml"
-            s["prod"] = ("waiting", "")
-        elif "prod" in s:
-            s["promote"] = ("done", "已 promote")
-    rows.sort(key=lambda r: r["when"], reverse=True)
-    return rows, envs
+            label = f"{env} 上线"
+            if not first:
+                steps.append(Step(env, label))
+            elif contains(sha, e["tag"]) and not (e.get("ready") and e["health"] == "Healthy") and hist[env][-1][1] == e["tag"]:
+                steps.append(Step(env, label, "running", start=first[0], note=f"{e['sync']}/{e['health']}"))
+            else:
+                steps.append(Step(env, label, "done", start=first[0], end=first[0], url=first[2], note=first[1]))
+        return steps
+
+    out, used = [], set()
+    for p in [p for p in pulls if p["head"]["ref"].startswith(("design/", "review/")) or p["title"].startswith("design")][:MAX_RUNS]:
+        if p["state"] == "closed" and not p["merged_at"]:
+            continue
+        files = gh_cached(f"repos/{APP}/pulls/{p['number']}/files?per_page=100", final=p["state"] == "closed")
+        apis = sorted({re.sub(r"\.yaml$", "", f["filename"].split("/")[-1]) for f in files
+                       if re.match(r"design/[^/]+/[A-Z][A-Za-z0-9]+\.yaml$", f["filename"])})
+        steps = []
+        reviews = [r for r in runs if r["name"] == "spec-pr" and r["head_branch"] == p["head"]["ref"]]
+        if reviews:
+            last = reviews[0]
+            st = run_status(Obj(last))
+            steps.append(Step("design", "AI 审查", "person" if st == "failed" and p["state"] == "open" else st,
+                              ts(reviews[-1]["created_at"]), ts(last["updated_at"]) if last["status"] == "completed" else None,
+                              last["html_url"], f"{len(reviews)} 轮" + (" · 有问题要回答" if st == "failed" and p["state"] == "open" else "")))
+        if p["merged_at"]:
+            steps.append(Step("design", "设计书合并", "done", end=ts(p["merged_at"]), url=p["html_url"]))
+            msha = p["merge_commit_sha"]
+            g = gens.get(msha[:7])
+            gen_run = by_sha.get(("generate", msha))
+            # the gate is the verify job inside the generate run (the pull_request verify of a PR opened by the bot
+            # fails at start-up: 0 jobs)
+            steps += job_steps(gen_run, "gen", {"generate": "生成", "verify / verify": "verify"}, "生成") if gen_run else [
+                Step("gen", "生成", "skip", note="后续手动生成")]
+            sha = None
+            if g:
+                if g["merged_at"]:
+                    steps.append(Step("gen", "生成 PR 合并", "done", end=ts(g["merged_at"]), url=g["html_url"]))
+                    sha = g["merge_commit_sha"]
+                elif g["state"] == "open":
+                    steps.append(Step("gen", "生成 PR 合并", "person", url=g["html_url"], note="等合并"))
+            elif any(contains(msha, e["tag"]) for e in envs.values()):
+                sha = msha
+            if sha:
+                used.add(sha)
+                steps += release_steps(sha, releases) if sha in releases else [Step("release", "release", "skip", note="随后续 release")]
+                delivery(sha, steps)
+        else:
+            steps.append(Step("design", "设计书合并", "person", url=p["html_url"], note="等合并"))
+        name = ", ".join(apis[:2]) + (f" +{len(apis) - 2}" if len(apis) > 2 else "") if apis else p["title"]
+        out.append({"id": f"pr-{p['number']}", "name": name, "title": p["title"], "trigger": f"#{p['number']}",
+                    "trigger_url": p["html_url"], "created": ts(p["created_at"]), "steps": steps})
+    for (n, sha), r in by_sha.items():
+        if n != "release" or sha in used or r["event"] != "push":
+            continue
+        steps = delivery(sha, release_steps(sha, releases))
+        out.append({"id": f"c-{sha[:7]}", "name": "工厂: " + r["display_title"][:70], "title": r["display_title"],
+                    "trigger": sha[:7], "trigger_url": f"https://github.com/{APP}/commit/{sha}", "created": ts(r["created_at"]),
+                    "steps": steps})
+    out.sort(key=lambda x: x["created"], reverse=True)
+    return out[:MAX_RUNS], envs
+
+
+def overall(steps):
+    sts = [s.status for s in steps]
+    for k in ("failed", "running", "person"):
+        if k in sts:
+            return k
+    return "done" if all(s in ("done", "skip") for s in sts) else "waiting"
+
+
+def current(steps):
+    for s in steps:
+        if s.status in ("failed", "running", "person", "waiting"):
+            return s
+    return steps[-1] if steps else None
 
 
 def loop():
     while True:
         try:
-            rows, envs = collect()
-            state.update(rows=rows, envs=envs, updated=datetime.datetime.now(TZ), error="")
-        except Exception as e:  # keep the last good board, show the error
+            runs, envs = collect()
+            state.update(runs=runs, envs=envs, updated=datetime.datetime.now(TZ), error="")
+        except Exception as e:
             state["error"] = f"{type(e).__name__}: {e}"[:200]
             print(json.dumps({"error": state["error"]}), flush=True)
         time.sleep(INTERVAL)
 
 
-STAGES = [("design", "设计书 PR"), ("gen", "生成 PR"), ("release", "release"), ("dev", "dev"), ("promote", "promote"), ("prod", "prod")]
-COLORS = {"done": "#2e7d32", "running": "#1565c0", "person": "#ef6c00", "failed": "#c62828", "waiting": "#9e9e9e",
-          "skip": "#cfd8dc", "closed": "#757575"}
-LEGEND = {"done": "完成", "running": "进行中", "person": "等人", "failed": "失败", "waiting": "未开始"}
-VALUES = {"done": 2, "running": 1, "waiting": 0, "failed": -1, "person": -2, "skip": 2, "closed": 2}
+# ── pages ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+COLORS = {"done": "#1e8e3e", "running": "#1a73e8", "person": "#e37400", "failed": "#d93025", "waiting": "#9aa0a6", "skip": "#bdc1c6"}
+ICONS = {"done": "✓", "running": "⟳", "person": "⏸", "failed": "✕", "waiting": "·", "skip": "–"}
+WORDS = {"done": "完成", "running": "进行中", "person": "等人处理", "failed": "失败", "waiting": "未开始", "skip": "跳过"}
+STAGES = {"design": "设计书", "gen": "生成", "release": "release", "dev": "dev", "promote": "promote", "prod": "prod"}
+
+CSS = """
+:root{--bg:#f8f9fa;--card:#fff;--fg:#202124;--mut:#5f6368;--line:#dadce0}
+@media (prefers-color-scheme:dark){:root{--bg:#1f1f1f;--card:#2a2a2a;--fg:#e8eaed;--mut:#9aa0a6;--line:#3c4043}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px -apple-system,system-ui,"PingFang SC",sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:600}.env{color:var(--mut)}.env b{color:var(--fg)}
+main{padding:16px 20px;max-width:1300px}a{color:inherit;text-decoration:none}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
+th{font-weight:500;color:var(--mut);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}tr.r:hover{background:rgba(26,115,232,.06);cursor:pointer}
+.ic{display:inline-flex;width:22px;height:22px;border-radius:50%;color:#fff;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.running .ic,.ic.running{animation:spin 1.2s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.dots{display:flex;gap:3px}.dot{width:14px;height:6px;border-radius:3px}.dot.running{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}.mut{color:var(--mut);font-size:12px}.name{font-weight:500}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin-top:12px}
+.stage{display:flex;flex-direction:column;gap:6px}.stage h3{margin:0 0 2px;font-size:12px;color:var(--mut);font-weight:500;text-transform:uppercase}
+.row{display:flex;align-items:center}
+.node{background:var(--card);border:2px solid var(--c);border-radius:10px;padding:10px 12px;min-width:118px;position:relative}
+.node .t{font-weight:600;display:flex;gap:6px;align-items:center}.node .s{font-size:12px;color:var(--mut);margin-top:4px}
+.node.running{box-shadow:0 0 0 0 var(--c);animation:glow 1.6s infinite}@keyframes glow{70%{box-shadow:0 0 0 10px rgba(26,115,232,0)}}
+.node.person{animation:glowp 1.6s infinite}@keyframes glowp{0%{box-shadow:0 0 0 0 rgba(227,116,0,.6)}70%{box-shadow:0 0 0 10px rgba(227,116,0,0)}}
+.edge{width:44px;height:4px;margin:0 2px;border-radius:2px;background:var(--line);align-self:center}
+.edge.done{background:#1e8e3e}
+.edge.flow{background:repeating-linear-gradient(90deg,#1a73e8 0 10px,transparent 10px 18px);background-size:36px 4px;animation:flow .6s linear infinite}
+.edge.wait{background:repeating-linear-gradient(90deg,#e37400 0 8px,transparent 8px 14px);background-size:28px 4px;animation:flow 1.2s linear infinite}
+@keyframes flow{from{background-position:0 0}to{background-position:36px 0}}
+.legend span{margin-right:12px}.err{color:#d93025}
+"""
 
 
-def page():
-    rows = state["rows"]
-    out = ['<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-           f'<meta http-equiv="refresh" content="{INTERVAL}"><title>Delivery board</title><style>',
-           "body{font:14px -apple-system,system-ui,sans-serif;margin:16px;background:#fafafa;color:#212121}",
-           "table{border-collapse:separate;border-spacing:4px;width:100%}td,th{padding:6px 8px;text-align:left}",
-           "th{font-weight:600;color:#555}.c{border-radius:6px;color:#fff;font-size:12px;white-space:nowrap}",
-           "a{color:inherit}.t{max-width:420px}.env{display:inline-block;margin-right:16px}.err{color:#c62828}",
-           "@media (prefers-color-scheme: dark){body{background:#121212;color:#eee}th{color:#aaa}}</style></head><body>",
-           "<h2>api-factory delivery board</h2><div>"]
-    for ns, e in state["envs"].items():
-        out.append(f'<span class="env"><b>{ns}</b>: {html.escape(e.get("tag", ""))} · {e.get("sync")}/{e.get("health")}</span>')
+def fmt_dur(a, b):
+    if not a:
+        return ""
+    s = int(((b or datetime.datetime.now(datetime.timezone.utc)) - a).total_seconds())
+    return f"{s // 3600}h{s % 3600 // 60:02d}m" if s >= 3600 else (f"{s // 60}m{s % 60:02d}s" if s >= 60 else f"{s}s")
+
+
+def fmt_t(t):
+    return t.astimezone(TZ).strftime("%m-%d %H:%M") if t else ""
+
+
+def head(title, refresh):
+    envs = " ".join(f'<span class="env">{k} <b>{html.escape(e.get("tag", ""))}</b> {e.get("sync")}/{e.get("health")}</span>'
+                    for k, e in state["envs"].items())
     upd = state["updated"].strftime("%H:%M:%S") if state["updated"] else "—"
-    out.append(f'</div><p>更新 {upd} · 每 {INTERVAL}s · ' + " ".join(
-        f'<span class="c" style="background:{COLORS[k]};padding:2px 6px">{v}</span>' for k, v in LEGEND.items()) + "</p>")
-    if state["error"]:
-        out.append(f'<p class="err">{html.escape(state["error"])}</p>')
-    out.append("<table><tr><th>改动</th>" + "".join(f"<th>{n}</th>" for _, n in STAGES) + "</tr>")
-    links = {"gen": "gen_url", "release": "release_url", "promote": "promote_url"}
-    for r in rows:
-        out.append(f'<tr><td class="t"><a href="{html.escape(r["url"])}">{html.escape(r["title"])}</a></td>')
-        for k, _ in STAGES:
-            kind, text = r["stages"].get(k, ("waiting", ""))
-            text = html.escape(text)
-            if r.get(links.get(k, "")):
-                text = f'<a href="{html.escape(r[links[k]])}">{text}</a>'
-            out.append(f'<td class="c" style="background:{COLORS[kind]}">{text}</td>')
-        out.append("</tr>")
-    out.append("</table></body></html>")
+    err = f'<span class="err">{html.escape(state["error"])}</span>' if state["error"] else ""
+    return (f'<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<meta http-equiv="refresh" content="{refresh}"><title>{html.escape(title)}</title><style>{CSS}</style></head><body>'
+            f'<header><h1><a href="/">api-factory 交付</a></h1>{envs}<span class="mut">更新 {upd}</span>{err}</header><main>')
+
+
+def list_page():
+    out = [head("Delivery board", INTERVAL), '<table><tr><th></th><th>交付</th><th>触发</th><th>开始</th><th>耗时</th><th>当前</th><th>进度</th></tr>']
+    for r in state["runs"]:
+        st, cur = overall(r["steps"]), current(r["steps"])
+        start = next((s.start or s.end for s in r["steps"] if s.start or s.end), r["created"])
+        end = None if st in ("running", "person", "waiting") else max((s.end for s in r["steps"] if s.end), default=None)
+        dots = "".join(f'<span class="dot {s.status}" title="{html.escape(s.name)}: {WORDS[s.status]}" style="background:{COLORS[s.status]}"></span>' for s in r["steps"])
+        curtxt = "已上线 prod" if st == "done" else f"{STAGES[cur.stage]} · {cur.name}" + (f" · {cur.note}" if cur.note else "")
+        out.append(f'<tr class="r {st}" onclick="location.href=\'/run/{r["id"]}\'">'
+                   f'<td><span class="ic {st}" style="background:{COLORS[st]}">{ICONS[st]}</span></td>'
+                   f'<td><div class="name">{html.escape(r["name"])}</div><div class="mut">{html.escape(r["title"][:90])}</div></td>'
+                   f'<td><a href="{html.escape(r["trigger_url"])}" onclick="event.stopPropagation()">{html.escape(r["trigger"])}</a></td>'
+                   f'<td class="mut">{fmt_t(start)}</td><td class="mut">{fmt_dur(start, end)}</td>'
+                   f'<td>{html.escape(curtxt)}</td><td><div class="dots">{dots}</div></td></tr>')
+    out.append("</table>")
+    out.append('<p class="legend mut">' + "".join(f'<span><span class="ic" style="background:{COLORS[k]};width:16px;height:16px;font-size:10px">{ICONS[k]}</span> {WORDS[k]}</span>' for k in ("done", "running", "person", "failed", "waiting")) + "</p></main></body></html>")
     return "".join(out)
 
 
+def run_page(rid):
+    r = next((x for x in state["runs"] if x["id"] == rid), None)
+    if not r:
+        return None
+    st = overall(r["steps"])
+    out = [head(r["name"], 10), f'<div style="display:flex;gap:12px;align-items:center"><span class="ic {st}" style="background:{COLORS[st]};width:28px;height:28px">{ICONS[st]}</span>'
+           f'<div><div class="name" style="font-size:17px">{html.escape(r["name"])}</div><div class="mut">{html.escape(r["title"])} · '
+           f'<a href="{html.escape(r["trigger_url"])}">{html.escape(r["trigger"])}</a> · {WORDS[st]}</div></div></div><div class="flow">']
+    groups = []
+    for s in r["steps"]:
+        if not groups or groups[-1][0] != s.stage:
+            groups.append((s.stage, []))
+        groups[-1][1].append(s)
+    prev = None
+    for gi, (stage, steps) in enumerate(groups):
+        cells = []
+        for s in steps:
+            if prev is not None:
+                cls = "done" if prev.status in ("done", "skip") and s.status in ("done", "skip") else (
+                    "flow" if s.status == "running" else ("wait" if s.status == "person" else ""))
+                cells.append(f'<div class="edge {cls}"></div>')
+            when = fmt_t(s.end or s.start)
+            dur = fmt_dur(s.start, s.end) if s.start else ""
+            sub = " · ".join(x for x in (s.note, dur, when) if x)
+            node = (f'<div class="node {s.status}" style="--c:{COLORS[s.status]}"><div class="t"><span class="ic {s.status if s.status == "running" else ""}" '
+                    f'style="background:{COLORS[s.status]};width:18px;height:18px;font-size:11px">{ICONS[s.status]}</span>{html.escape(s.name)}</div>'
+                    f'<div class="s">{html.escape(sub) or WORDS[s.status]}</div></div>')
+            cells.append(f'<a href="{html.escape(s.url)}" target="_blank">{node}</a>' if s.url else node)
+            prev = s
+        out.append(f'<div class="stage"><h3>{STAGES[stage]}</h3><div class="row">{"".join(cells)}</div></div>')
+    out.append('</div><p class="mut" style="margin-top:20px">节点可点击(GitHub 上的运行记录 / PR / gitops 提交)。每 10 秒刷新。</p></main></body></html>')
+    return "".join(out)
+
+
+VALUES = {"done": 2, "skip": 2, "running": 1, "waiting": 0, "failed": -1, "person": -2}
+
+
 def metrics():
-    lines = ["# HELP delivery_change_stage 2 done, 1 running, 0 waiting, -1 failed, -2 waiting for a person",
-             "# TYPE delivery_change_stage gauge"]
-    for r in state["rows"]:
-        name = re.sub(r'["\\\n]', "", r["title"])[:80]
-        for k, _ in STAGES:
-            kind = r["stages"].get(k, ("waiting", ""))[0]
-            lines.append(f'delivery_change_stage{{change="{name}",stage="{k}"}} {VALUES[kind]}')
+    lines = ["# HELP delivery_run_status 2 done, 1 running, 0 waiting, -1 failed, -2 waiting for a person",
+             "# TYPE delivery_run_status gauge"]
+    for r in state["runs"]:
+        name = re.sub(r'["\\\n]', "", r["name"])[:80]
+        lines.append(f'delivery_run_status{{run="{r["id"]}",name="{name}"}} {VALUES[overall(r["steps"])]}')
     age = (datetime.datetime.now(TZ) - state["updated"]).total_seconds() if state["updated"] else -1
     lines.append(f"delivery_board_last_update_age_seconds {age:.0f}")
     return "\n".join(lines) + "\n"
@@ -244,11 +399,19 @@ def metrics():
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        body, ctype = {"/": (page, "text/html; charset=utf-8"), "/metrics": (metrics, "text/plain; version=0.0.4"),
-                       "/healthz": (lambda: "ok", "text/plain")}.get(self.path, (None, None))
-        if not body:
+        if self.path == "/":
+            body, ctype = list_page(), "text/html; charset=utf-8"
+        elif self.path.startswith("/run/"):
+            body, ctype = run_page(self.path[5:]), "text/html; charset=utf-8"
+        elif self.path == "/metrics":
+            body, ctype = metrics(), "text/plain; version=0.0.4"
+        elif self.path == "/healthz":
+            body, ctype = "ok", "text/plain"
+        else:
+            body = None
+        if body is None:
             self.send_response(404); self.end_headers(); return
-        b = body().encode()
+        b = body.encode()
         self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(b)))
         self.end_headers(); self.wfile.write(b)
 
