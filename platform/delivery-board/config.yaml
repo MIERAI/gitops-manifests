@@ -1,7 +1,5 @@
-# Pipelines of the delivery board (MIERAI/delivery-board; format: its README). Mounted at /etc/delivery-board.
-#   api-factory  design PR → AI review → generated PR → release → dev → prod
-#   sample-app   push → release → dev → prod
-#   storefront   monorepo: two services, each released (paths) and promoted (one image) on its own, dev → staging → prod
+# Pipelines of the delivery board (MIERAI/delivery-board; format and templates: its README). Mounted at
+# /etc/delivery-board. Expanded: delivery-board -print-config -config config.yaml
 title: 交付看板
 timezone: Asia/Tokyo
 interval: 30s
@@ -20,22 +18,20 @@ pipelines:
           - { stage: 设计书, name: AI 审查, workflow: spec-pr, failureNeedsPerson: true, personNote: 有问题要回答 }
           - { stage: 设计书, name: 设计书合并, merge: true }
           - { stage: 生成, name: 生成, workflow: generate, jobs: { generate: 生成, "verify / verify": verify } }
-          - { stage: 生成, name: 生成 PR 合并, followPR: "^factory/gen-{sha7}$" }
+          - { stage: 生成, name: 生成 PR 合并, followPR: ^factory/gen-$(sha7)$ }
     push: { label: 工厂 }                                        # commits to main that are not a design change
     release:
       name: release
       jobs: { "verify / verify": verify, "image-api / build": API 镜像, "image-schema / build": 迁移镜像, "promote / promote": 推送 dev }
+    defaults:
+      environment:
+        manifests: { repo: MIERAI/gitops-manifests, path: api-factory/overlays/$(env)/kustomization.yaml, image: ghcr.io/mierai/api-factory }
+        argocd: { app: api-factory-$(env) }
+        workload: { namespace: api-factory-$(env), kind: Deployment, name: api-factory, container: api }
     environments:
-      - name: dev
-        url: http://100.90.245.89:30080
-        manifests: { repo: MIERAI/gitops-manifests, path: api-factory/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/api-factory }
-        argocd: { app: api-factory-dev }
-        workload: { namespace: api-factory-dev, kind: Deployment, name: api-factory, container: api }
+      - { name: dev, url: "http://100.90.245.89:30080" }
       - name: prod
         url: http://100.90.245.89:30081
-        manifests: { repo: MIERAI/gitops-manifests, path: api-factory/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/api-factory }
-        argocd: { app: api-factory-prod }
-        workload: { namespace: api-factory-prod, kind: Deployment, name: api-factory, container: api }
         promotion:
           from: dev
           soak: 10m
@@ -55,81 +51,39 @@ pipelines:
     release:
       name: ci
       jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
+    defaults:
+      environment:
+        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/$(env)/kustomization.yaml, image: ghcr.io/mierai/sample-app }
+        argocd: { app: sample-app-$(env) }
+        workload: { namespace: sample-app-$(env), kind: Rollout, name: sample-app, container: app }
     environments:
-      - name: dev
-        url: http://100.90.245.89:30082
-        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/sample-app }
-        argocd: { app: sample-app-dev }
-        workload: { namespace: sample-app-dev, kind: Rollout, name: sample-app, container: app }
+      - { name: dev, url: "http://100.90.245.89:30082" }
       - name: prod
         url: http://100.90.245.89:30083
-        manifests: { repo: MIERAI/gitops-manifests, path: sample-app/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/sample-app }
-        argocd: { app: sample-app-prod }
-        workload: { namespace: sample-app-prod, kind: Rollout, name: sample-app, container: app }
         promotion:
           from: dev
           soak: 10m
           prTitle: ^promote sample-app
           workflow: { file: promote.yml, inputs: { app: sample-app }, soakInput: soak }
 
-  - id: storefront-web
-    title: storefront · web
+  # monorepo: one pipeline per service (storefront-web, storefront-api), each released and promoted on its own
+  - id: storefront
+    title: storefront
     repo: MIERAI/storefront
+    services: [web, api]
     push: { label: 提交 }
     release:
-      name: release-web                   # runs only for changes under services/web
+      name: release-$(service)                # runs only for changes under services/$(service)
       jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
+    defaults:
+      environment:
+        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/$(env)/kustomization.yaml, image: ghcr.io/mierai/storefront-$(service) }
+        argocd: { app: storefront-$(env) }
+        workload: { namespace: storefront-$(env), kind: Deployment, name: $(service), container: $(service) }
+      promotion:                              # one image at a time: the service
+        prTitle: ^promote storefront storefront-$(service) → $(env)$
+        workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-$(service), from: $(from), to: $(env) }, soakInput: soak }
     environments:
       - name: dev
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/storefront-web }
-        argocd: { app: storefront-dev }
-        workload: { namespace: storefront-dev, kind: Deployment, name: web, container: web }
-      - name: staging
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/staging/kustomization.yaml, image: ghcr.io/mierai/storefront-web }
-        argocd: { app: storefront-staging }
-        workload: { namespace: storefront-staging, kind: Deployment, name: web, container: web }
-        promotion:
-          from: dev
-          soak: 5m
-          prTitle: "^promote storefront storefront-web → staging$"
-          workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-web, from: dev, to: staging }, soakInput: soak }
-      - name: prod
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/storefront-web }
-        argocd: { app: storefront-prod }
-        workload: { namespace: storefront-prod, kind: Deployment, name: web, container: web }
-        promotion:
-          from: staging
-          soak: 10m
-          prTitle: "^promote storefront storefront-web → prod$"
-          workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-web, from: staging, to: prod }, soakInput: soak }
-
-  - id: storefront-api
-    title: storefront · api
-    repo: MIERAI/storefront
-    push: { label: 提交 }
-    release:
-      name: release-api                   # runs only for changes under services/api
-      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
-    environments:
-      - name: dev
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/dev/kustomization.yaml, image: ghcr.io/mierai/storefront-api }
-        argocd: { app: storefront-dev }
-        workload: { namespace: storefront-dev, kind: Deployment, name: api, container: api }
-      - name: staging
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/staging/kustomization.yaml, image: ghcr.io/mierai/storefront-api }
-        argocd: { app: storefront-staging }
-        workload: { namespace: storefront-staging, kind: Deployment, name: api, container: api }
-        promotion:
-          from: dev
-          soak: 5m
-          prTitle: "^promote storefront storefront-api → staging$"
-          workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-api, from: dev, to: staging }, soakInput: soak }
-      - name: prod
-        manifests: { repo: MIERAI/gitops-manifests, path: storefront/overlays/prod/kustomization.yaml, image: ghcr.io/mierai/storefront-api }
-        argocd: { app: storefront-prod }
-        workload: { namespace: storefront-prod, kind: Deployment, name: api, container: api }
-        promotion:
-          from: staging
-          soak: 10m
-          prTitle: "^promote storefront storefront-api → prod$"
-          workflow: { file: promote.yml, inputs: { app: storefront, image: ghcr.io/mierai/storefront-api, from: staging, to: prod }, soakInput: soak }
+      - { name: staging, promotion: { from: dev, soak: 5m } }
+      - { name: prod, promotion: { from: staging, soak: 10m } }
