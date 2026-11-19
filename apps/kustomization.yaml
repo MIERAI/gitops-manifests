@@ -17,3 +17,6 @@ resources:
   - storefront-dev.yaml
   - storefront-prod.yaml
   - storefront-staging.yaml
+  - storefront-worker-dev.yaml
+  - storefront-worker-prod.yaml
+  - storefront-worker-staging.yaml

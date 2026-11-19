@@ -29,7 +29,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: delivery-board, namespace: argocd }
 rules:
-  - { apiGroups: [argoproj.io], resources: [applications], resourceNames: [api-factory-dev, api-factory-prod, sample-app-dev, sample-app-prod, storefront-dev, storefront-staging, storefront-prod], verbs: [get] }
+  - { apiGroups: [argoproj.io], resources: [applications], resourceNames: [api-factory-dev, api-factory-prod, sample-app-dev, sample-app-prod, storefront-dev, storefront-staging, storefront-prod, storefront-worker-dev, storefront-worker-staging, storefront-worker-prod], verbs: [get] }
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -62,7 +62,7 @@ subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-boa
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: delivery-board, namespace: storefront-dev }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api], verbs: [get] }]
+rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -73,7 +73,7 @@ subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-boa
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: delivery-board, namespace: storefront-staging }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api], verbs: [get] }]
+rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -84,7 +84,7 @@ subjects: [{ kind: ServiceAccount, name: delivery-board, namespace: delivery-boa
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: delivery-board, namespace: storefront-prod }
-rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api], verbs: [get] }]
+rules: [{ apiGroups: [apps], resources: [deployments], resourceNames: [web, api, worker], verbs: [get] }]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

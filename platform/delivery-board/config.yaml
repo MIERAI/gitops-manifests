@@ -87,3 +87,24 @@ pipelines:
       - name: dev
       - { name: staging, promotion: { from: dev, soak: 5m } }
       - { name: prod, promotion: { from: staging, soak: 10m } }
+
+  # the third storefront service: a Helm chart with values per environment (same namespaces as web / api)
+  - id: storefront-worker
+    title: storefront · worker
+    repo: MIERAI/storefront
+    push: { label: 提交 }
+    release:
+      name: release-worker
+      jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
+    defaults:
+      environment:
+        manifests: { repo: MIERAI/gitops-manifests, path: storefront-worker/values-$(env).yaml, image: ghcr.io/mierai/storefront-worker }   # helm: {repository, tag}
+        argocd: { app: storefront-worker-$(env) }
+        workload: { namespace: storefront-$(env), kind: Deployment, name: worker, container: worker }
+      promotion:
+        prTitle: ^promote storefront-worker → $(env)$
+        workflow: { file: promote.yml, inputs: { app: storefront-worker, from: $(from), to: $(env) }, soakInput: soak }
+    environments:
+      - name: dev
+      - { name: staging, promotion: { from: dev, soak: 5m } }
+      - { name: prod, promotion: { from: staging, soak: 10m } }

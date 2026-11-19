@@ -8,7 +8,7 @@ on:
       app:
         description: 应用
         type: choice
-        options: [api-factory, sample-app, storefront]
+        options: [api-factory, sample-app, storefront, storefront-worker]
       from: { description: 从, default: dev }
       to: { description: 到, default: prod }
       version: { description: "版本(tag;空 = 从的环境现在的版本;回滚时填旧版本)", default: "" }
