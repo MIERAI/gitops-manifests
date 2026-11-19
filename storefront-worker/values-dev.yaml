@@ -1,0 +1,4 @@
+# dev: image.tag is set by the worker's release workflow (MIERAI/storefront release-worker)
+image:
+  repository: ghcr.io/mierai/storefront-worker
+  tag: "c02473d"

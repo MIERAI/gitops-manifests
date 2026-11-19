@@ -4,3 +4,4 @@ set -euo pipefail
 dest=${1:-/usr/local/bin}
 curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C "$dest" kubeconform
 curl -fsSL https://github.com/kyverno/kyverno/releases/download/v1.19.2/kyverno-cli_v1.19.2_linux_x86_64.tar.gz | tar xz -C "$dest" kyverno
+curl -fsSL https://get.helm.sh/helm-v4.3.2-linux-amd64.tar.gz | tar xz -C "$dest" --strip-components=1 linux-amd64/helm

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Every overlay must build with kustomize and pass kubeconform (CRDs such as Application / Rollout via the CRDs catalog).
+# Every application must render as Argo CD renders it (scripts/render.py: kustomize overlay or Helm chart + values) and
+# pass kubeconform (CRDs such as Application / Rollout via the CRDs catalog).
 # platform/ (upstream install manifests) is only built, not schema-checked.
-# Admission policies (platform/policies): their own tests (good/bad fixtures), then every overlay of an application whose
+# Admission policies (platform/policies): their own tests (good/bad fixtures), then every application whose
 # namespace is enforced must pass them — the same check Kyverno does at admission, but on the pull request.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 KC=${KUBECONFORM:-kubeconform}
 KY=${KYVERNO:-kyverno}
 CRDS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'   # Argo CD / Rollouts
-for o in */overlays/*/; do
-  echo "• $o"
-  kubectl kustomize "$o" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
+mapfile -t APPS < <(python3 -I scripts/render.py list | awk '$2 !~ /^platform\// {print $1}')   # applications, not the platform
+for a in "${APPS[@]}"; do
+  echo "• $a"
+  python3 -I scripts/render.py render "$a" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
 done
 # Applications: apps/ (kind) and every cluster built on it (clusters/<name>)
 for a in apps/ clusters/*/; do
@@ -33,7 +35,7 @@ for f in sys.argv[1:]:
         print(f"  - {{ name: {ns}, labels: {{ gitops-platform/policies: enforced }} }}")
 PY
 args=()
-for o in */overlays/*/; do kubectl kustomize "$o" > "$tmp/$(echo "$o" | tr / _).yaml"; args+=(--resource "$tmp/$(echo "$o" | tr / _).yaml"); done
+for a in "${APPS[@]}"; do python3 -I scripts/render.py render "$a" > "$tmp/$a.yaml"; args+=(--resource "$tmp/$a.yaml"); done
 out=$($KY apply platform/policies/workload-baseline.yaml --exception platform/policies/exceptions.yaml \
         --values-file "$tmp/values.yaml" "${args[@]}" 2>&1) || true
 echo "$out" | grep -vE '^\s*$'

@@ -12,7 +12,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65534, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: board
-          image: ghcr.io/mierai/delivery-board:686bca9   # MIERAI/delivery-board (commit)
+          image: ghcr.io/mierai/delivery-board:08db8a8   # MIERAI/delivery-board (commit)
           args: [-config, /etc/delivery-board/config.yaml, -addr, ":8080"]
           env:
             - name: GITHUB_TOKEN

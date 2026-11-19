@@ -1,0 +1,5 @@
+apiVersion: v2
+name: storefront-worker
+description: storefront's background worker (MIERAI/storefront services/worker). Values per environment next to the chart.
+type: application
+version: 0.1.0
