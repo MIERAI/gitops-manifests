@@ -28,6 +28,11 @@ slos:
       200 counted result="degraded"). Blind to requests that never reach a web pod.
     objective: 99.5
     availability: { metric: http_requests_total, matchers: 'app="web", route="GET /{$}"', errors: 'result!="ok"' }
+  - name: web-probe
+    description: The page answered 2xx within 5s when called from outside the pods (blackbox prober, every 15s). Sees a
+      web outage with no pod left to count it; does not see degraded pages (200).
+    objective: 99.5
+    probe: { service: web, port: 8080, path: "/" }
   - name: web-latency
     description: The page served within 500ms.
     objective: 99

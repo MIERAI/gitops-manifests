@@ -28,3 +28,8 @@ slos:
     description: GET /hello answered within 250ms (a bucket edge of the app's histogram).
     objective: 99
     latency: { metric: http_request_duration_seconds, matchers: 'app="sample-app", route="GET /hello"', threshold: "0.25" }
+  - name: hello-probe
+    description: GET /hello answered 2xx within 5s when called from outside the pods (blackbox prober, every 15s). Sees
+      what the in-pod SLI cannot — no pod at all, a broken Service — but only at probe granularity.
+    objective: 99.5
+    probe: { service: sample-app, port: 8080, path: "/hello?name=probe" }

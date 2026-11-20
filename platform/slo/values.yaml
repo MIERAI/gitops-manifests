@@ -4,4 +4,5 @@ env: ""            # environment; the namespace is the release namespace (<app>-
 slos: []
 # Alert layers (blueprint docs/slo.md §4): fast / medium burn page, slow burn and a missing SLI are tickets.
 severities: { fastBurn: page, mediumBurn: page, slowBurn: ticket, longTermBurn: ticket, absent: ticket }
+prober: blackbox-exporter.monitoring.svc:9115   # platform-blackbox (probe SLOs)
 runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md
