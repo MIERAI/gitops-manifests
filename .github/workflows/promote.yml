@@ -1,6 +1,9 @@
 # 升级: dev 跑过的一个版本(默认: dev 现在的版本)→ prod。开 PR,人批准后合并 → Argo CD 同步 prod
 # 门槛(scripts/promote.sh,从 git 历史推算): 只接受在 dev 跑过的版本,且在 dev 连续运行 ≥ soak 分钟。回滚 = 选一个旧版本。
 # 交付看板(delivery-board)上的 Promote 按钮也是运行这个 workflow(另外还检查 dev 现在健康)
+# 错误预算(blueprint docs/slo.md §6,看板检查: delivery-board docs/error-budget.md): promote 到 prod 时,预算 0–25% 要写
+# reason;耗尽 / 快速消耗 / 未知 时只允许 change: fix(修复、可靠性改进、回滚)或 exception(明确的例外),都要写 reason。
+# 这里看不到预算(GitHub 的 runner 连不到 Prometheus): 只把 change / reason 写进 PR,看板判断,合并的人看
 name: promote
 on:
   workflow_dispatch:
@@ -11,6 +14,8 @@ on:
       version: { description: "版本(tag;空 = 从的环境现在的版本;回滚时填旧版本)", default: "" }
       soak: { description: 在从的环境至少运行多少分钟, default: "10" }
       image: { description: "只搬这一个镜像(monorepo 的一个服务,如 ghcr.io/mierai/storefront-web;空 = 全部一起)", default: "" }
+      change: { description: "改动类型(错误预算): feature / fix(修复、可靠性、回滚)/ exception(明确的例外)", type: choice, options: [feature, fix, exception], default: feature }
+      reason: { description: "理由: 预算 ≤ 25% 时必填;fix / exception 必填(写进 PR)", default: "" }
 permissions:
   contents: write
   pull-requests: write
@@ -22,6 +27,12 @@ jobs:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - run: sudo scripts/install-tools.sh
+      - name: 改动类型和理由(fix / exception 要理由)
+        env: { CHANGE: "${{ inputs.change }}", REASON: "${{ inputs.reason }}" }
+        run: |
+          if [ "$CHANGE" != feature ] && [ -z "${REASON//[[:space:]]/}" ]; then
+            echo "::error::change: $CHANGE needs a reason (blueprint docs/slo.md §6)"; exit 1
+          fi
       - name: 更新 tag
         id: tags
         env: { APP: "${{ inputs.app }}", FROM: "${{ inputs.from }}", TO: "${{ inputs.to }}", VERSION: "${{ inputs.version }}", SOAK: "${{ inputs.soak }}", IMAGE: "${{ inputs.image }}" }
@@ -37,6 +48,8 @@ jobs:
           FROM: "${{ inputs.from }}"
           TO: "${{ inputs.to }}"
           IMAGE: "${{ inputs.image }}"
+          CHANGE: "${{ inputs.change }}"
+          REASON: "${{ inputs.reason }}"
           TAGS: "${{ steps.tags.outputs.tags }}"
           REPO: "${{ github.repository }}"
           RUN_ID: "${{ github.run_id }}"
@@ -48,7 +61,11 @@ jobs:
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"; git commit -am "promote $what $FROM → $TO: $TAGS"
           git push origin "$branch"
-          { echo "Promote the version running in $FROM to $TO: \`$TAGS\`. Merging lets Argo CD sync $TO."; echo; scripts/diff.sh origin/main; } > body.md
+          # Change / Reason: the declaration for the error budget policy; the delivery board reads these two lines back
+          reason=$(printf '%s' "$REASON" | tr '\r\n' '  ')
+          { echo "Promote the version running in $FROM to $TO: \`$TAGS\`. Merging lets Argo CD sync $TO."; echo
+            echo "Change: ${CHANGE:-feature}"; if [ -n "$reason" ]; then echo "Reason: $reason"; fi; echo
+            scripts/diff.sh origin/main; } > body.md
           # the validation above ran on exactly this commit: report it as the required "validate" check
           gh api "repos/$REPO/statuses/$(git rev-parse HEAD)" -f state=success -f context=validate \
             -f description="scripts/validate.sh passed in the promote workflow" >/dev/null
