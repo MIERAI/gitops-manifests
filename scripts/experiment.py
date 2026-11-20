@@ -115,9 +115,11 @@ class Run:
         t0 = time.time()
         if objs:
             kubectl("apply", "-f", "-", stdin=manifest)
-            self.say(f"fault injected in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in objs))
+            self.say(f"fault created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in objs))
         seen, unexpected = {}, {}
         try:
+            if objs:
+                self.wait_injected(objs)
             deadline = t0 + max([dur(x.get("timeout", "15m"))] + [dur(w.get("within", "10m")) for w in fire])
             while time.time() < deadline:
                 now = firing()
@@ -161,6 +163,25 @@ class Run:
             for i in left:
                 self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
         self.say("PASS" if self.ok else "FAIL")
+
+    def wait_injected(self, objs, limit=90):
+        """Chaos Mesh accepts an object and may still inject nothing (a denied pause image, a daemon with an old
+        certificate): then "no alert fired" would test nothing. Fail unless every object is AllInjected."""
+        t = time.time()
+        while True:
+            pending = []
+            for o in objs:
+                st = json.loads(kubectl("get", "-n", self.ns, o["kind"].lower(), o["metadata"]["name"], "-o", "json")).get("status", {})
+                if not any(c["type"] == "AllInjected" and c["status"] == "True" for c in st.get("conditions", [])):
+                    events = [e["message"] for r in st.get("experiment", {}).get("containerRecords", []) for e in r.get("events", [])
+                              if e.get("type") == "Failed"]
+                    pending.append(f"{o['kind']}/{o['metadata']['name']}" + (f" ({events[-1]})" if events else ""))
+            if not pending:
+                self.say(f"✓ fault injected ({time.time() - t:.0f}s)")
+                return
+            if time.time() - t > limit:
+                raise RuntimeError(f"fault not injected after {limit}s: {'; '.join(pending)}")
+            time.sleep(5)
 
     def report(self, root):
         os.makedirs(os.path.join(root, "experiments", "results"), exist_ok=True)

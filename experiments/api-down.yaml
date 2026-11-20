@@ -1,6 +1,7 @@
-hypothesis: Every api pod fails (a bad release, a dependency of api down). web still answers, with pages without
-  products (degraded); web's availability SLO must page. api has no pods left, so its own SLI disappears: its
-  "SLI absent" ticket is the meta-signal.
+hypothesis: >-
+  Every api pod fails (a bad release, a dependency of api down). web still answers, with pages without products
+  (degraded); web's availability SLO must page. api has no pods left, so its own SLI disappears: its "SLI absent"
+  ticket is the meta-signal.
 namespace: storefront-dev
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1

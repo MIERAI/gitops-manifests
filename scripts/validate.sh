@@ -25,6 +25,17 @@ for p in platform/*/; do
   echo "• $p"; kubectl kustomize "$p" > /dev/null
 done
 
+echo "• experiments"   # parse, and the fields the runner needs (scripts/experiment.py)
+python3 -I - <<'PY'
+import glob, sys, yaml
+for f in sorted(glob.glob("experiments/*.yaml")):
+    x = yaml.safe_load(open(f))
+    missing = [k for k in ("hypothesis", "namespace", "expect") if k not in x]
+    if missing:
+        sys.exit(f"{f}: missing {missing}")
+    print(f"  {f}: ok")
+PY
+
 echo "• admission policies"
 $KY test platform/policies/tests
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
