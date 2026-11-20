@@ -1,0 +1,10 @@
+# Human verdicts on alert episodes (scripts/alert-report.py): they override the automatic classification.
+# The monthly review (gitops-platform-blueprint docs/slo.md §8) resolves "unknown" episodes here, with a reason, so the
+# next report counts them right. Times are ISO with an offset; match is a subset of the alert's labels.
+#
+# - match: { alertname: ErrorBudgetBurn, namespace: api-factory-prod, slo: api-factory-rpc-latency }
+#   from: 2026-11-20T20:00:00+09:00
+#   to: 2026-11-20T21:00:00+09:00
+#   class: incident          # experiment | incident | noise | unknown
+#   note: rollout of 0d68c31 made every RPC slow until the pods were warm
+[]

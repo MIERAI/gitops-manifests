@@ -41,6 +41,8 @@ scripts/set-image.sh       used by application CI (via the shared promote-dev wo
 scripts/promote.sh         moves a version that ran in one environment to the next (soak, one image or all; promote workflow)
 scripts/render.py          renders every Application as Argo CD does (kustomize / Helm, incl. app.yaml ones)
 scripts/validate.sh        render + kubeconform + admission policies for every application (CI: validate)
+scripts/alert-report.py    which alerts fired, would they notify, were they useful (monthly; experiments/README.md)
+reports/alerts/            its reports, one per cluster and month, and the human verdicts (labels.yaml)
 ```
 
 ## Changes and who makes them

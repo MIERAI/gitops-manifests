@@ -52,3 +52,37 @@ packets to the Service IP (translated on the node, outside the pod), so a fault 
 database pods does not match. Measured on kind (storefront-dev, 2026-11-20): +2s selected on the workers with target
 Postgres left the order delay at 0.45s (normal); +2s selected on Postgres with target the workers gave 8.1s (4 round
 trips). Select the database and target the clients: the replies carry the clients' pod IPs.
+
+## Alert value report (monthly)
+
+Experiments show that an alert fires when it must; the alert report shows what the alerts did the rest of the time:
+which fired, how often and how long, whether they would notify anyone, and whether each firing was useful
+(gitops-platform-blueprint `docs/slo.md` §4: "an unactionable page is a bug"; §8: the monthly review). Read-only:
+Prometheus queries and, on the laptop, the alert-speaker's log. Reports go to `reports/alerts/` (one per cluster and
+month, next to the human verdicts in `labels.yaml`), not to `results/`: they are a review of every alert over a
+month, not the outcome of one experiment.
+
+```sh
+# once a month, per cluster (the clusters are not reachable from GitHub: run it locally), then commit the reports
+uv run --with pyyaml python3 scripts/alert-report.py --cluster laptop --since 30d -o reports/alerts/$(date +%Y-%m)-laptop.md
+uv run --with pyyaml python3 scripts/alert-report.py --cluster demo   --since 30d -o reports/alerts/$(date +%Y-%m)-demo.md
+```
+
+- **Episode**: `ALERTS{alertstate="firing"}` per alert (alertname, namespace, slo, severity, long window); firing runs
+  less than `--gap` (5m) apart are one episode, the merged runs are counted (flapping).
+- **Notified**: the cluster's Alertmanager routes and inhibit rules (`clusters/<cluster>/kustomization.yaml`, the
+  version merged when the episode started, from git, + 3 min for Argo CD) applied to the episode and to what fired
+  with it. On the laptop the speaker's log is the check ("heard N×"; disagreements are listed).
+- **Class**, first match wins: a human label (`reports/alerts/labels.yaml`) → **experiment** (a run in that namespace:
+  `results/*.md` from the first log line to the last + 30 min cooldown, the `slo_experiment_*` metrics, the
+  namespace's current mark; expected / unexpected per its `expect`) → **incident** (independent evidence in the
+  namespace from 15 min before the start to 15 min after: a restart, a running pod not ready, a scrape target down, a
+  failed job, a new ReplicaSet = a rollout; never the metric the alert itself reads) → **noise** (resolved in < 3 min,
+  flapping, so little traffic that a handful of bad events paged, an absent-metric alert right after Prometheus
+  started) → **unknown** (the data cannot tell; label it).
+- **Actionable share**: incidents among the notifications outside experiments; unknowns make it a range.
+
+Blind spots: the results files name no cluster (`--results-cluster`, default demo, is where they count); Alertmanager's
+own state (silences, repeat_interval, deduplication across a Prometheus restart) is not modelled; incident evidence
+is namespace-wide, so a coincidence (a routine rollout) counts — the reasons are printed for a human to disagree;
+Prometheus keeps 30 days, so the report cannot look further back. Tests: `scripts/test_alert_report.py` (CI: validate).
