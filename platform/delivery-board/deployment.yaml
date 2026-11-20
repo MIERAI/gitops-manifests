@@ -12,7 +12,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 65534, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: board
-          image: ghcr.io/mierai/delivery-board:cb50016   # MIERAI/delivery-board (commit)
+          image: ghcr.io/mierai/delivery-board:c106b78   # MIERAI/delivery-board (commit)
           args: [-config, /etc/delivery-board/config.yaml, -addr, ":8080"]
           env:
             - name: GITHUB_TOKEN
@@ -37,10 +37,3 @@ spec:
   type: NodePort
   selector: { app: delivery-board }
   ports: [{ name: http, port: 8080, targetPort: http, nodePort: 30090 }]
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata: { name: delivery-board, namespace: delivery-board }
-spec:
-  selector: { matchLabels: { app: delivery-board } }
-  endpoints: [{ port: http, path: /metrics, interval: 60s }]
