@@ -28,11 +28,16 @@ done
 echo "• experiments"   # parse, and the fields the runner needs (scripts/experiment.py)
 python3 -I - <<'PY'
 import glob, sys, yaml
+sys.path.insert(0, "scripts")
+from experiment import check_deadlines   # every fault ends by itself when the runner dies
 for f in sorted(glob.glob("experiments/*.yaml")):
     x = yaml.safe_load(open(f))
     missing = [k for k in ("hypothesis", "namespace", "expect") if k not in x]
     if missing:
         sys.exit(f"{f}: missing {missing}")
+    problems = check_deadlines(x)
+    if problems:
+        sys.exit(f"{f}: " + "; ".join(problems))
     print(f"  {f}: ok")
 PY
 

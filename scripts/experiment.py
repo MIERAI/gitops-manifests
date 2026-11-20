@@ -7,9 +7,13 @@ Several experiments run in parallel (give them different namespaces: they share 
 Experiment format (experiments/README.md):
 
   hypothesis: what is broken           namespace: where (needs chaos-mesh.org/inject=enabled)
-  fault: [Chaos Mesh objects]          created in the namespace; deleted at the end, whatever happens
+  fault: [objects]                     created in the namespace; deleted at the end, whatever happens. Each one must
+                                       end by itself if the runner dies (a laptop asleep): Chaos Mesh objects with a
+                                       spec.duration ≥ the experiment's time, or a fault-switch ConfigMap (the runner
+                                       adds `expires`: the application ignores it after that); nothing else
   load: [Kubernetes objects]           optional: what the fault needs to matter (e.g. a Job that writes), created
-                                       before the fault, deleted with it; not checked for injection
+                                       before the fault, deleted with it; not checked for injection (a Job needs
+                                       activeDeadlineSeconds)
   timeout: 15m                         how long the fault stays at most
   expect:
     fire:  [{alert, labels: {...}, within: 10m}]   each must fire within its time
@@ -24,7 +28,11 @@ Namespaces are marked while an experiment runs (annotation gitops-platform/exper
 experiment per namespace, across processes and people) and for 30 min after (a burn-rate alert can still fire after
 recovery). Pages in a marked namespace belong to its experiment; every other page fails every running experiment.
 
-Exit 1 if any experiment failed. A report per run: experiments/results/<date>-<name>.md. --record also stores each
+A run is INVALID — neither PASS nor FAIL — when time did not flow normally: the wall clock jumped more than 4 polls
+between two polls (the machine slept, the VM paused), or Prometheus has a gap in the run or the hour before it (the
+burn-rate windows). On macOS the runner keeps the machine awake while it runs (caffeinate; a closed lid still sleeps).
+
+Exit 1 if any experiment failed, 2 if none failed but some were invalid. A report per run: experiments/results/<date>-<name>.md. --record also stores each
 result in a ConfigMap (key <name>.json: pass/fail, when, detection and recovery times per expected alert), which
 platform/experiments exports as Prometheus metrics; the scheduled regression (scripts/experiment-regression.py) uses it.
 """
@@ -55,6 +63,10 @@ COOLDOWN = "gitops-platform/experiment-cooldown"  # epoch until which late alert
 COOLDOWN_S = 1800
 STALE_S = 4 * 3600                                # a mark older than this is left over from a killed run
 STOP = threading.Event()                          # set on SIGTERM: every running experiment removes its fault and ends
+JUMP_S = 4 * POLL                                 # more than this between two polls: the clock jumped (sleep, VM paused)
+PROM_GAP_S = 120                                  # a hole this long in Prometheus' own samples: the run is invalid
+LOOKBACK_S = 3600                                 # the burn-rate windows (1h) reach this far back before a run
+EXPIRY_MARGIN_S = 300                             # a fault switch expires this long after the experiment's time
 
 
 def marked_namespaces():
@@ -70,8 +82,62 @@ def marked_namespaces():
 
 
 def dur(s):
-    m = re.fullmatch(r"(\d+)([smh])", str(s))
-    return int(m.group(1)) * {"s": 1, "m": 60, "h": 3600}[m.group(2)]
+    """'90s', '15m', '1h30m' → seconds"""
+    if not re.fullmatch(r"(\d+[smh])+", str(s)):
+        raise ValueError(f"not a duration: {s!r} (e.g. 15m, 1h30m)")
+    return sum(int(n) * {"s": 1, "m": 60, "h": 3600}[u] for n, u in re.findall(r"(\d+)([smh])", str(s)))
+
+
+def keep_awake():
+    """macOS: no idle / system sleep while this process runs (caffeinate ends with it). A closed lid still sleeps."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(["caffeinate", "-i", "-s", "-w", str(os.getpid())], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            print(f"warning: could not keep the Mac awake (caffeinate): {e}", flush=True)
+
+
+def prom_gap(start, end):
+    """The longest hole (seconds, where it began) in Prometheus' samples of itself between start and end."""
+    q = urllib.parse.quote(f'up{{job="kps-prometheus", container="prometheus"}}[{max(60, int(end - start))}s]')
+    out = json.loads(kubectl("get", "--raw", f"{PROM}query?query={q}&time={end:.3f}"))
+    ts = sorted(float(v[0]) for r in out["data"]["result"] for v in r["values"])
+    pts = [start] + ts + [end]
+    return max((b - a, a) for a, b in zip(pts, pts[1:]))
+
+
+def prom_gap_reason(start, end):
+    """Why Prometheus' data between start and end cannot be trusted (None: it can)."""
+    try:
+        g, at = prom_gap(start, end)
+    except Exception as e:  # cannot check: cannot vouch for the data either
+        return f"could not check Prometheus for gaps: {e}"
+    if g > PROM_GAP_S:
+        return f"Prometheus has no samples for {g / 60:.0f} min from {datetime.datetime.fromtimestamp(at):%H:%M:%S} (machine asleep, VM paused)"
+    return None
+
+
+def fault_limit(x):
+    """How long the fault may stay at most (the runner's deadline after creating it)."""
+    return max([dur(x.get("timeout", "15m"))] + [dur(w.get("within", "10m")) for w in x.get("expect", {}).get("fire", [])])
+
+
+def check_deadlines(x):
+    """Every fault (and load Job) must end by itself when the runner dies: [problems]."""
+    limit, out = fault_limit(x), []
+    for o in x.get("fault") or []:
+        what = f"{o.get('kind')}/{o.get('metadata', {}).get('name')}"
+        if o.get("apiVersion", "").startswith("chaos-mesh.org/"):
+            d = (o.get("spec") or {}).get("duration")
+            if not d or dur(d) < limit:
+                out.append(f"{what}: a Chaos Mesh fault needs spec.duration ≥ the experiment's {limit // 60} min (got {d})")
+        elif o.get("kind") != "ConfigMap":
+            out.append(f"{what}: a fault is a Chaos Mesh object (spec.duration) or a fault-switch ConfigMap (expires); "
+                       "nothing else ends by itself when the runner dies")
+    for o in x.get("load") or []:
+        if o.get("kind") == "Job" and not (o.get("spec") or {}).get("activeDeadlineSeconds"):
+            out.append(f"Job/{o.get('metadata', {}).get('name')} (load): needs activeDeadlineSeconds")
+    return out
 
 
 def kubectl(*args, stdin=None):
@@ -108,6 +174,20 @@ class Run:
         self.not_started = None      # why not
         self.t0 = self.finished = None
         self.fired, self.resolved, self.broken = {}, {}, set()   # fire index → s after the fault; quiet indices that fired
+        self.invalid = None          # why the result means nothing (time did not flow normally)
+        self.last_tick = None
+
+    @property
+    def status(self):
+        return "invalid" if self.invalid else "pass" if self.ok else "fail"
+
+    def tick(self):
+        """Called at every poll: a jump of the wall clock (machine asleep, VM paused) invalidates the run."""
+        now = time.time()
+        if self.last_tick and now - self.last_tick > JUMP_S and not self.invalid:
+            self.invalid = f"the clock jumped {(now - self.last_tick) / 60:.1f} min between two polls (machine asleep, VM paused)"
+            self.say("⚠ " + self.invalid)
+        self.last_tick = now
 
     def say(self, msg):
         line = f"{datetime.datetime.now():%H:%M:%S} [{self.name}] {msg}"
@@ -127,15 +207,21 @@ class Run:
             self.fail(f"not started: {e}")
             self.say("FAIL")
             return
-        self.started = time.time()
+        self.started = self.last_tick = time.time()
         try:
             self._run()
         except Exception as e:  # a crash is a failed experiment, never a silent pass
+            if STOP.is_set():
+                self.invalid = self.invalid or "stopped (SIGTERM) before the end"
             self.fail(f"runner error: {e}")
-            self.say("FAIL")
         finally:
             self.finished = time.time()
             self.unlock()
+        if not self.invalid and self.t0:   # the burn-rate windows reach an hour back: a gap there skews them too
+            self.invalid = prom_gap_reason(self.started - LOOKBACK_S, self.finished)
+            if self.invalid:
+                self.say("⚠ " + self.invalid)
+        self.say(self.status.upper() + (f" ({self.invalid})" if self.invalid else ""))
 
     def lock(self):
         """Mark the namespace; kubectl annotate without --overwrite refuses an existing mark: the lock."""
@@ -165,6 +251,9 @@ class Run:
             self.fail(f"expected alert already firing before the fault: {stale} — cannot test it now")
             return
         objs = x.get("fault") or []
+        problems = check_deadlines(x)
+        if problems:
+            raise RuntimeError("refused, a fault must end by itself: " + "; ".join(problems))
         if any(not o.get("apiVersion", "").startswith("chaos-mesh.org/") for o in objs) and not x.get("effect"):
             raise RuntimeError("a fault that is not a Chaos Mesh object (e.g. a fault switch ConfigMap) needs `effect`: "
                                "nothing else proves it bites")
@@ -187,6 +276,9 @@ class Run:
             self.say(f"load created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in loads))
         t0 = self.t0 = time.time()
         if objs:
+            expires = f"{t0 + fault_limit(x) + EXPIRY_MARGIN_S:.0f}"   # the fault switch ends even if we die now
+            objs = [{**o, "data": {**(o.get("data") or {}), "expires": expires}} if o.get("kind") == "ConfigMap" else o for o in objs]
+            manifest = self.manifest(objs)
             kubectl("apply", "-f", "-", stdin=manifest)
             self.say(f"fault created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in objs))
         seen, unexpected = self.fired, {}
@@ -195,8 +287,9 @@ class Run:
                 self.wait_injected(objs)
                 if x.get("effect"):
                     self.wait_effect(x["effect"])
-            deadline = t0 + max([dur(x.get("timeout", "15m"))] + [dur(w.get("within", "10m")) for w in fire])
+            deadline = t0 + fault_limit(x)
             while time.time() < deadline:
+                self.tick()
                 if STOP.is_set():
                     raise RuntimeError("stopped (SIGTERM) before the end")
                 now, marked = firing(), marked_namespaces()
@@ -237,15 +330,18 @@ class Run:
             t1, left = time.time(), set(seen)
             while left and time.time() - t1 < dur(x["recover"]) and not STOP.is_set():
                 time.sleep(POLL)
+                self.tick()
                 now = firing()
                 for i in list(left):
                     if not any(matches(a, fire[i]) for a in now):
                         left.discard(i)
                         self.resolved[i] = time.time() - t1
                         self.say(f"✓ resolved {(time.time() - t1) / 60:.1f} min after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
+            if STOP.is_set():
+                self.invalid = self.invalid or "stopped (SIGTERM) during recovery"
             for i in left:
-                self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
-        self.say("PASS" if self.ok else "FAIL")
+                if not STOP.is_set():
+                    self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
 
     def manifest(self, objs):
         return "\n---\n".join(yaml.safe_dump({**o, "metadata": {**o.get("metadata", {}), "namespace": self.ns}}) for o in objs)
@@ -272,6 +368,7 @@ class Run:
         objs = [o for o in objs if o.get("apiVersion", "").startswith("chaos-mesh.org/")]   # others (a fault switch
         # ConfigMap) have no injection status: their `effect` query is the proof
         while objs:
+            self.tick()
             pending = []
             for o in objs:
                 st = json.loads(kubectl("get", "-n", self.ns, o["kind"].lower(), o["metadata"]["name"], "-o", "json")).get("status", {})
@@ -290,6 +387,7 @@ class Run:
         t = time.time()
         q = urllib.parse.quote(e["query"])
         while time.time() - t < dur(e.get("within", "3m")) and not STOP.is_set():
+            self.tick()
             if json.loads(kubectl("get", "--raw", f"{PROM}query?query={q}"))["data"]["result"]:
                 self.say(f"✓ fault takes effect ({time.time() - t:.0f}s): {e['query']}")
                 return
@@ -309,7 +407,7 @@ class Run:
         for j, q in enumerate(quiet):
             exp.append({"kind": "quiet", "alert": q["alert"], "labels": {k: str(v) for k, v in q.get("labels", {}).items()},
                         "met": bool(self.t0) and j not in self.broken})
-        return {"experiment": self.name, "namespace": self.ns, "success": self.ok,
+        return {"experiment": self.name, "namespace": self.ns, "success": self.ok, "status": self.status,
                 "started": self.started, "fault_at": self.t0, "finished": self.finished,
                 "expectations": exp, "report": "\n".join(self.log)}
 
@@ -322,9 +420,15 @@ class Run:
             prev = {}
         else:
             prev = json.loads((json.loads(r.stdout).get("data") or {}).get(f"{self.name}.json") or "{}")
-        res = self.result()
-        # when it last passed, kept across failed runs ("verified by an experiment, and when")
-        res["last_success"] = res["finished"] if self.ok else prev.get("last_success")
+        if self.invalid:   # says nothing about the alerts: the last valid run stays the result
+            res = {"experiment": self.name, "namespace": self.ns, **prev}
+            res["last_invalid"] = {"finished": self.finished, "reason": self.invalid, "report": "\n".join(self.log)}
+        else:
+            res = self.result()
+            # when it last passed, kept across failed runs ("verified by an experiment, and when")
+            res["last_success"] = res["finished"] if self.ok else prev.get("last_success")
+            res["last_invalid"] = prev.get("last_invalid")
+        res["last_status"] = self.status
         kubectl("patch", "-n", ns, "configmap", cm, "--type", "merge", "-p",
                 json.dumps({"data": {f"{self.name}.json": json.dumps(res, ensure_ascii=False)}}))
 
@@ -332,7 +436,7 @@ class Run:
         os.makedirs(os.path.join(root, "experiments", "results"), exist_ok=True)
         f = os.path.join(root, "experiments", "results", f"{datetime.date.today()}-{self.name}.md")
         with open(f, "w") as out:
-            out.write(f"# {self.name}: {'PASS' if self.ok else 'FAIL'}\n\n{self.x['hypothesis']}\n\n```\n" + "\n".join(self.log) + "\n```\n")
+            out.write(f"# {self.name}: {self.status.upper()}\n\n{self.x['hypothesis']}\n\n```\n" + "\n".join(self.log) + "\n```\n")
         return f
 
 
@@ -345,6 +449,7 @@ def main():
     a = p.parse_args()
     if a.kubeconfig:
         KUBE.extend(["--kubeconfig", a.kubeconfig])
+    keep_awake()
     runs = [Run(f, not a.no_recover) for f in a.files]
     if len({r.ns for r in runs}) < len(runs):
         sys.exit("two experiments in one namespace: they would share the burn-rate windows (run them one after the other)")
@@ -356,10 +461,10 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     print()
     for r in runs:
-        print(f"{'PASS' if r.ok else 'FAIL'}  {r.name}  ({os.path.relpath(r.report(root))})")
+        print(f"{r.status.upper():7}  {r.name}  ({os.path.relpath(r.report(root))}){'  ' + r.invalid if r.invalid else ''}")
         if a.record and r.started:
             r.record(a.record)
-    sys.exit(0 if all(r.ok for r in runs) else 1)
+    sys.exit(1 if any(r.status == "fail" for r in runs) else 2 if any(r.invalid for r in runs) else 0)
 
 
 if __name__ == "__main__":

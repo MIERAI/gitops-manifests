@@ -35,8 +35,22 @@ Several people / agents can run experiments at once: the runner marks the namesp
 any other page fails every running experiment. A run killed hard leaves its mark; it expires after 4h, or
 `kubectl annotate ns <ns> gitops-platform/experiment-`.
 
+**Every fault ends by itself**, because the runner can die with its machine (2026-11-20: the Mac slept for an hour
+with a fault switch on; staging answered 503 all along). Chaos Mesh objects need `spec.duration` ≥ the experiment's
+time (`timeout`, `within`); a fault-switch ConfigMap gets `expires` (start + that time + 5 min) from the runner, which
+the application honours; any other fault is refused, and so is a load Job without `activeDeadlineSeconds` (checked
+by CI too).
+
+**A run whose time did not flow is INVALID**, neither PASS nor FAIL: the wall clock jumped more than 1 min between two
+polls (machine asleep, VM paused), or Prometheus has a hole of more than 2 min in the run or in the hour before it
+(the 1h burn-rate windows; also right after a Prometheus restart). It is reported and recorded as invalid and says
+nothing about the alerts. On macOS the runner keeps the machine awake while it runs (`caffeinate -i -s`): that does
+not stop a closed lid (or a manual sleep), and it cannot help the in-cluster regression on kind — its container
+does not run on macOS, and a sleeping Mac freezes the whole cluster (the gap check catches it).
+
 Format: `hypothesis`, `namespace`, `effect` (a PromQL query that returns data once the fault bites: Chaos Mesh's
-"injected" only means the rules are in place), `fault` (Chaos Mesh objects, created in the namespace and always deleted),
+"injected" only means the rules are in place; required for a fault that is not a Chaos Mesh object), `fault` (Chaos Mesh
+objects with `spec.duration`, or a fault-switch ConfigMap; created in the namespace and always deleted),
 `load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
 fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
 `within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
@@ -95,7 +109,7 @@ On the lab clusters (kind, the demo cluster; never the laptop) every experiment 
 alerting: `platform/experiments` (a CronJob, 09:00 JST) clones this repository at main and runs
 `scripts/experiment-regression.py --cluster kind`. One queue per namespace, the queues in parallel; within a namespace
 the negative tests first, then the faults, each one only when the namespace is free (no experiment of anyone, its
-cooldown over, nothing paging there, none of its expected alerts firing) and marked 45 min after its fault. A full run takes ~9 h (storefront-dev: 7
+cooldown over, nothing paging there, none of its expected alerts firing, no Prometheus gap in the last hour) and marked 45 min after its fault. A full run takes ~9 h (storefront-dev: 7
 experiments). Not run, and said so: `skip:`, `clusters:` without this cluster, a namespace that does not exist here.
 The runner refuses to start unless every node is a kind node.
 
@@ -111,11 +125,13 @@ Results become metrics (`experiment-exporter`, from the ConfigMap `experiment-re
 
 | Metric | |
 |---|---|
-| `slo_experiment_last_success` | 1: the last run passed |
+| `slo_experiment_last_success` | 1: the last valid run passed (invalid runs do not change it) |
+| `slo_experiment_last_status{status}` | the last run, valid or not: pass / fail / invalid |
+| `slo_experiment_last_invalid_timestamp_seconds` | when the last invalid run ended |
 | `slo_experiment_last_run_timestamp_seconds`, `…_last_success_timestamp_seconds`, `…_last_duration_seconds` | when it last ran / passed, how long |
 | `slo_experiment_expectation_met` | per expectation: fired in time (fire) or stayed quiet (quiet) |
 | `slo_experiment_detection_seconds`, `slo_experiment_recovery_seconds` | fault → alert fired; fault removed → alert resolved |
-| `slo_experiment_regression_status{status, reason}` | each experiment in the last scheduled run: pass / fail / error / skipped (reason) |
+| `slo_experiment_regression_status{status, reason}` | each experiment in the last scheduled run: pass / fail / invalid / error / skipped (reason) |
 | `slo_experiment_regression_last_start_timestamp_seconds`, `…_last_finished_timestamp_seconds`, `slo_experiment_regression_experiments{status}` | the run itself |
 
 "Is this SLO's page verified, and when": `slo_experiment_expectation_met{kind="fire", slo="…"} == 1` with
