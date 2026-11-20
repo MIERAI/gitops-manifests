@@ -14,5 +14,7 @@ fault:
 timeout: 15m
 expect:
   fire:
-    - { alert: ErrorBudgetBurn, labels: { namespace: sample-app-dev, slo: sample-app-hello-availability, severity: page }, within: 10m }
+    # wave 1: the in-pod SLI (hello-availability) cannot see this — no pod is left to count the failures. The probe
+    # SLO (outside the pods, platform-blackbox) must.
+    - { alert: ErrorBudgetBurn, labels: { namespace: sample-app-dev, slo: sample-app-hello-probe, severity: page, long: 1h }, within: 10m }
 recover: 15m

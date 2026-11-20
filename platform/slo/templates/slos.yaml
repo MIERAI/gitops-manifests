@@ -3,12 +3,33 @@ One ServiceLevelObjective per slo. Every query gets namespace="<release namespac
 environment, and the namespace becomes a label of the recording rules and alerts (the series of dev and prod differ).
   availability: bad = metric{namespace, matchers, errors}  among  metric{namespace, matchers}
   latency:      good = metric_bucket{namespace, matchers, le=threshold}  among  metric_count{namespace, matchers}
+  probe:        good = probe_success == 1 among the probes: a blackbox prober (platform-blackbox) calls the service from
+                outside its pods every 15s, so an outage with no pod left to count the failures still burns the budget
+                (wave 1: every sample-app pod down paged nobody). Also renders the Probe.
 */}}
 {{- range .Values.slos }}
 {{- $sel := printf "namespace=%q" $.Release.Namespace }}
-{{- $kind := ternary "availability" "latency" (hasKey . "availability") }}
+{{- $kind := "latency" }}
+{{- if hasKey . "availability" }}{{ $kind = "availability" }}{{ else if hasKey . "probe" }}{{ $kind = "probe" }}{{ end }}
 {{- $sli := index . $kind }}
 {{- if $sli.matchers }}{{ $sel = printf "%s, %s" $sel $sli.matchers }}{{ end }}
+{{- if eq $kind "probe" }}
+{{- $sel = printf "%s, slo_probe=%q" $sel (printf "%s-%s" $.Values.app .name) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: {{ $.Values.app }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  prober: { url: {{ $.Values.prober | quote }} }
+  module: {{ $sli.module | default "http_2xx" }}
+  interval: {{ $sli.interval | default "15s" }}
+  targets:
+    staticConfig:
+      static: [{{ printf "http://%s.%s.svc:%v%s" $sli.service $.Release.Namespace $sli.port ($sli.path | default "/") | quote }}]
+      labels: { slo_probe: {{ printf "%s-%s" $.Values.app .name | quote }} }
+{{- end }}
 ---
 apiVersion: pyrra.dev/v1alpha1
 kind: ServiceLevelObjective
@@ -19,7 +40,7 @@ metadata:
     pyrra.dev/app: {{ $.Values.app | quote }}
     pyrra.dev/env: {{ $.Values.env | quote }}
   annotations:
-    pyrra.dev/runbook: {{ printf "%s#%s" $.Values.runbook (ternary "error-budget-burn" "latency" (eq $kind "availability")) | quote }}
+    pyrra.dev/runbook: {{ printf "%s#%s" $.Values.runbook (ternary "latency" "error-budget-burn" (eq $kind "latency")) | quote }}
     pyrra.dev/summary: {{ printf "%s %s: %s SLO %v%% is burning its error budget" $.Values.app $.Values.env .name .objective | quote }}
 spec:
   description: {{ .description | default (printf "%s %s" $.Values.app .name) | quote }}
@@ -30,6 +51,9 @@ spec:
     ratio:
       errors: { metric: {{ printf "%s{%s, %s}" $sli.metric $sel $sli.errors | quote }} }
       total: { metric: {{ printf "%s{%s}" $sli.metric $sel | quote }} }
+    {{- else if eq $kind "probe" }}
+    bool_gauge:
+      metric: {{ printf "probe_success{%s}" $sel | quote }}
     {{- else }}
     latency:
       success: { metric: {{ printf "%s_bucket{%s, le=%q}" $sli.metric $sel (toString $sli.threshold) | quote }} }
