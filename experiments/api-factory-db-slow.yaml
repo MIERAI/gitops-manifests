@@ -1,0 +1,29 @@
+hypothesis: >-
+  Every packet from the API to Postgres is delayed by 200ms (a slow network path to the database, an overloaded
+  node). Each query needs one round trip (pgx QueryExecModeExec), so every RPC takes 200ms or more, far under the 3s
+  request timeout: users get slow answers, not errors. rpc-latency (99% under 100ms) must page; rpc-availability and
+  the health probe (a 1s database ping) must stay quiet. Prediction: the latency page after ~10.5 min (14x a 1%
+  budget = 14% of the hour's RPCs slow, i.e. 8.4 min of it, plus for 2m), resolving ~5 min after the fault.
+namespace: api-factory-prod
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: NetworkChaos
+    metadata: { name: api-factory-db-delay }
+    spec:
+      action: delay
+      mode: all
+      selector: { labelSelectors: { app: api-factory } }
+      direction: to
+      target:
+        mode: all
+        selector: { labelSelectors: { cnpg.io/cluster: postgres } }
+      delay: { latency: 200ms, jitter: 20ms }
+      duration: 30m
+timeout: 14m
+expect:
+  fire:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-latency, severity: page, long: 1h }, within: 14m }
+  quiet:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-availability } }
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-health-probe } }
+recover: 15m

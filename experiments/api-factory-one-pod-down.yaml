@@ -1,0 +1,21 @@
+hypothesis: >-
+  One of the two api-factory pods fails for 10 minutes. Kubernetes takes it out of the Service; the other pod serves
+  every RPC and answers the probe. Nobody should be paged. Prediction: no page; at most one failed probe in the
+  seconds before the readiness probe notices (requests that hit the dead pod in that gap are invisible to the
+  in-pod SLIs).
+namespace: api-factory-prod
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: PodChaos
+    metadata: { name: api-factory-one-down }
+    spec:
+      action: pod-failure
+      mode: one
+      selector: { labelSelectors: { app: api-factory } }
+      duration: 10m
+timeout: 10m
+hold: 10m
+expect:
+  fire: []
+  quiet:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod } }

@@ -19,11 +19,9 @@ QUIET = os.environ.get("QUIET_HOURS", "23-8")
 TZ = datetime.timezone(datetime.timedelta(hours=int(os.environ.get("TZ_OFFSET_HOURS", "9"))))
 
 PHRASES = {
-    "ApiFactoryServerErrors": "服务端错误超过百分之一",
-    "ApiFactoryHighLatency": "响应变慢",
+    "ErrorBudgetBurn": "错误预算消耗过快",
+    "SLOMetricAbsent": "服务等级指标没有数据",
     "ApiFactoryLoadTestFailed": "部署后的压力测试失败,不要发布到生产",
-    "SampleAppErrorBudgetFastBurn": "错误预算消耗过快",
-    "SampleAppHighLatency": "响应变慢",
     "PostgresWalArchivingFailing": "数据库日志归档失败",
     "PostgresWalArchivingStale": "数据库日志十五分钟没有归档",
     "PostgresReplicationLag": "数据库备库延迟",
