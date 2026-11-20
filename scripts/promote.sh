@@ -20,8 +20,8 @@ src, dst = fmt.env_file(app, frm, image or None), fmt.env_file(app, to, image or
 
 def images(text):
     found = fmt.read(src, text)  # [(image, tag)], in file order: the first one is the version
-    if image:  # only that image (its tag is the version)
-        found = [(n, t) for n, t in found if n == image]
+    if image:  # only that image (its tag is the version); a fork's counts as the same (same <name>)
+        found = [(n, t) for n, t in found if n == image or fmt.base(n) == fmt.base(image)]
     return found
 
 # history of the source file, newest first: (commit time, images); --follow: across moves (the path at each commit)

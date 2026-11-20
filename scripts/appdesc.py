@@ -31,10 +31,11 @@ def all_apps(root="."):
 def component_of(d, image):
     """The component that deploys image: by the services list, else the only component (which then also holds the
     images that are not a service of their own, e.g. api-factory's migration image next to its API)."""
-    if image:
-        for s in d.get("services", []):
-            if s["image"] == image:
-                return next(c for c in d["components"] if c["name"] == s["component"])
+    if image:  # the service's image, or a fork's (same <name>: ghcr.io/<you>/<name>)
+        hits = [s for s in d.get("services", []) if s["image"] == image] or \
+               [s for s in d.get("services", []) if s["image"].rsplit("/", 1)[-1] == image.rsplit("/", 1)[-1]]
+        if len(hits) == 1:
+            return next(c for c in d["components"] if c["name"] == hits[0]["component"])
     if len(d["components"]) == 1:
         return d["components"][0]
     if image:
