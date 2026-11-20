@@ -29,10 +29,37 @@ spec:
             podMonitorSelectorNilUsesHelmValues: false
             ruleSelectorNilUsesHelmValues: false
             probeSelectorNilUsesHelmValues: false   # the probe SLOs (platform/slo → Probe)
-            retention: 3d
+            # SLOs use 28-day windows (app.yaml slos → Pyrra): keep 30 days, on a volume — with 3 days in an emptyDir the
+            # "28-day" budgets were computed from 3 days and every restart started every SLO from nothing again.
+            retention: 30d
+            retentionSize: 12GB
+            storageSpec:
+              volumeClaimTemplate:
+                spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 15Gi } } }
             scrapeInterval: 15s
             evaluationInterval: 15s
-            resources: { requests: { cpu: 100m, memory: 400Mi }, limits: { memory: 1Gi } }
+            resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { memory: 1536Mi } }
+        # Series no rule, alert or SLO uses (~half of all series on k3s), so 30 days fit:
+        kubeApiServer:
+          serviceMonitor:
+            metricRelabelings:
+              - action: drop   # the chart's default
+                regex: (etcd_request|apiserver_request_slo|apiserver_request_sli|apiserver_request)_duration_seconds_bucket;(0\.15|0\.2|0\.3|0\.35|0\.4|0\.45|0\.6|0\.7|0\.8|0\.9|1\.25|1\.5|1\.75|2|3|3\.5|4|4\.5|6|7|8|9|15|20|40|45|50)(\.0)?
+                sourceLabels: [__name__, le]
+              - action: drop   # size / watch histograms
+                regex: apiserver_(request_body_size_bytes|response_sizes|watch_events_sizes|watch_list_duration_seconds|watch_cache_read_wait_seconds)_bucket
+                sourceLabels: [__name__]
+        kubelet:
+          serviceMonitor:
+            metricRelabelings:
+              - action: drop   # the chart's default
+                sourceLabels: [__name__, le]
+                regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+              # k3s runs the API server in the kubelet's process: its /metrics repeats what job apiserver already has
+              # (~68k series on the laptop). A real kubelet (kind) exposes none of these.
+              - action: drop
+                sourceLabels: [__name__]
+                regex: (apiserver|etcd|aggregator|apiextensions|authentication|authorization|watch_cache|field_validation)_.+
         alertmanager:
           alertmanagerSpec:
             resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } }
