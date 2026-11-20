@@ -1,7 +1,7 @@
 """Fault experiments: inject a fault, check that exactly the expected alerts fire (and nothing else pages), remove it.
 An alert that has never fired in an experiment is a hope, not a safety net (gitops-platform-blueprint docs/slo.md §5).
 
-  python3 scripts/experiment.py [--kubeconfig F] [--no-recover] experiments/<name>.yaml [...]
+  python3 scripts/experiment.py [--kubeconfig F] [--no-recover] [--record NS/CONFIGMAP] experiments/<name>.yaml [...]
 
 Several experiments run in parallel (give them different namespaces: they share the 1h burn-rate windows).
 Experiment format (experiments/README.md):
@@ -24,7 +24,9 @@ Namespaces are marked while an experiment runs (annotation gitops-platform/exper
 experiment per namespace, across processes and people) and for 30 min after (a burn-rate alert can still fire after
 recovery). Pages in a marked namespace belong to its experiment; every other page fails every running experiment.
 
-Exit 1 if any experiment failed. A report per run: experiments/results/<date>-<name>.md.
+Exit 1 if any experiment failed. A report per run: experiments/results/<date>-<name>.md. --record also stores each
+result in a ConfigMap (key <name>.json: pass/fail, when, detection and recovery times per expected alert), which
+platform/experiments exports as Prometheus metrics; the scheduled regression (scripts/experiment-regression.py) uses it.
 """
 import argparse
 import datetime
@@ -52,6 +54,7 @@ MARK = "gitops-platform/experiment"            # <name> <host> <started epoch>
 COOLDOWN = "gitops-platform/experiment-cooldown"  # epoch until which late alerts still belong to the last experiment
 COOLDOWN_S = 1800
 STALE_S = 4 * 3600                                # a mark older than this is left over from a killed run
+STOP = threading.Event()                          # set on SIGTERM: every running experiment removes its fault and ends
 
 
 def marked_namespaces():
@@ -101,6 +104,10 @@ class Run:
         self.name = os.path.splitext(os.path.basename(path))[0]
         self.ns = self.x["namespace"]
         self.log, self.ok = [], True
+        self.started = None          # the namespace was locked (None: not started, e.g. busy)
+        self.not_started = None      # why not
+        self.t0 = self.finished = None
+        self.fired, self.resolved, self.broken = {}, {}, set()   # fire index → s after the fault; quiet indices that fired
 
     def say(self, msg):
         line = f"{datetime.datetime.now():%H:%M:%S} [{self.name}] {msg}"
@@ -116,15 +123,18 @@ class Run:
         try:
             self.lock()
         except Exception as e:
+            self.not_started = str(e)
             self.fail(f"not started: {e}")
             self.say("FAIL")
             return
+        self.started = time.time()
         try:
             self._run()
         except Exception as e:  # a crash is a failed experiment, never a silent pass
             self.fail(f"runner error: {e}")
             self.say("FAIL")
         finally:
+            self.finished = time.time()
             self.unlock()
 
     def lock(self):
@@ -174,11 +184,11 @@ class Run:
         if loads:
             kubectl("apply", "-f", "-", stdin=load_manifest)
             self.say(f"load created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in loads))
-        t0 = time.time()
+        t0 = self.t0 = time.time()
         if objs:
             kubectl("apply", "-f", "-", stdin=manifest)
             self.say(f"fault created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in objs))
-        seen, unexpected = {}, {}
+        seen, unexpected = self.fired, {}
         try:
             if objs:
                 self.wait_injected(objs)
@@ -186,6 +196,8 @@ class Run:
                     self.wait_effect(x["effect"])
             deadline = t0 + max([dur(x.get("timeout", "15m"))] + [dur(w.get("within", "10m")) for w in fire])
             while time.time() < deadline:
+                if STOP.is_set():
+                    raise RuntimeError("stopped (SIGTERM) before the end")
                 now, marked = firing(), marked_namespaces()
                 for i, w in enumerate(fire):
                     if i not in seen and any(matches(a, w) for a in now):
@@ -196,6 +208,7 @@ class Run:
                     if k in baseline or k in unexpected or ignored(a):
                         continue
                     if any(matches(a, q) for q in quiet):
+                        self.broken |= {j for j, q in enumerate(quiet) if matches(a, q)}
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
                     elif a.get("severity") == "page" and not any(matches(a, w) for w in fire) \
                             and (a.get("namespace") == self.ns or a.get("namespace") not in marked):
@@ -221,12 +234,13 @@ class Run:
                 self.fail(f"fired too late ({seen[i] / 60:.1f} min > {w['within']}): {w['alert']} {w.get('labels', {})}")
         if self.recover and seen and x.get("recover"):
             t1, left = time.time(), set(seen)
-            while left and time.time() - t1 < dur(x["recover"]):
+            while left and time.time() - t1 < dur(x["recover"]) and not STOP.is_set():
                 time.sleep(POLL)
                 now = firing()
                 for i in list(left):
                     if not any(matches(a, fire[i]) for a in now):
                         left.discard(i)
+                        self.resolved[i] = time.time() - t1
                         self.say(f"✓ resolved {(time.time() - t1) / 60:.1f} min after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
             for i in left:
                 self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
@@ -267,19 +281,51 @@ class Run:
             if not pending:
                 self.say(f"✓ fault injected ({time.time() - t:.0f}s)")
                 return
-            if time.time() - t > limit:
+            if time.time() - t > limit or STOP.is_set():
                 raise RuntimeError(f"fault not injected after {limit}s: {'; '.join(pending)}")
             time.sleep(5)
 
     def wait_effect(self, e):
         t = time.time()
         q = urllib.parse.quote(e["query"])
-        while time.time() - t < dur(e.get("within", "3m")):
+        while time.time() - t < dur(e.get("within", "3m")) and not STOP.is_set():
             if json.loads(kubectl("get", "--raw", f"{PROM}query?query={q}"))["data"]["result"]:
                 self.say(f"✓ fault takes effect ({time.time() - t:.0f}s): {e['query']}")
                 return
             time.sleep(POLL)
         raise RuntimeError(f"fault injected but no effect within {e.get('within', '3m')}: {e['query']}")
+
+    def result(self):
+        """The run as data (for --record, and the metrics of platform/experiments)."""
+        x, fire, quiet = self.x, self.x.get("expect", {}).get("fire", []), self.x.get("expect", {}).get("quiet", [])
+        exp = []
+        for i, w in enumerate(fire):
+            ok = i in self.fired and self.fired[i] <= dur(w.get("within", "10m"))
+            exp.append({"kind": "fire", "alert": w["alert"], "labels": {k: str(v) for k, v in w.get("labels", {}).items()},
+                        "within_seconds": dur(w.get("within", "10m")), "met": bool(ok and self.t0),
+                        "detection_seconds": round(self.fired[i], 1) if i in self.fired else None,
+                        "recovery_seconds": round(self.resolved[i], 1) if i in self.resolved else None})
+        for j, q in enumerate(quiet):
+            exp.append({"kind": "quiet", "alert": q["alert"], "labels": {k: str(v) for k, v in q.get("labels", {}).items()},
+                        "met": bool(self.t0) and j not in self.broken})
+        return {"experiment": self.name, "namespace": self.ns, "success": self.ok,
+                "started": self.started, "fault_at": self.t0, "finished": self.finished,
+                "expectations": exp, "report": "\n".join(self.log)}
+
+    def record(self, where):
+        """Store the result in a ConfigMap (namespace/name), key <name>.json; created if missing."""
+        ns, cm = where.split("/")
+        r = subprocess.run(KUBE + ["get", "-n", ns, "configmap", cm, "-o", "json"], capture_output=True, text=True)
+        if r.returncode != 0:
+            kubectl("create", "-n", ns, "configmap", cm)
+            prev = {}
+        else:
+            prev = json.loads((json.loads(r.stdout).get("data") or {}).get(f"{self.name}.json") or "{}")
+        res = self.result()
+        # when it last passed, kept across failed runs ("verified by an experiment, and when")
+        res["last_success"] = res["finished"] if self.ok else prev.get("last_success")
+        kubectl("patch", "-n", ns, "configmap", cm, "--type", "merge", "-p",
+                json.dumps({"data": {f"{self.name}.json": json.dumps(res, ensure_ascii=False)}}))
 
     def report(self, root):
         os.makedirs(os.path.join(root, "experiments", "results"), exist_ok=True)
@@ -293,6 +339,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--kubeconfig")
     p.add_argument("--no-recover", action="store_true")
+    p.add_argument("--record", metavar="NS/CONFIGMAP", help="also store each result in this ConfigMap (metrics: platform/experiments)")
     p.add_argument("files", nargs="+")
     a = p.parse_args()
     if a.kubeconfig:
@@ -309,6 +356,8 @@ def main():
     print()
     for r in runs:
         print(f"{'PASS' if r.ok else 'FAIL'}  {r.name}  ({os.path.relpath(r.report(root))})")
+        if a.record and r.started:
+            r.record(a.record)
     sys.exit(0 if all(r.ok for r in runs) else 1)
 
 

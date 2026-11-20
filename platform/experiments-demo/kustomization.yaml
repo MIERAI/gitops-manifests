@@ -1,0 +1,16 @@
+# platform/experiments for the demo cluster (clusters/demo points the Application here). The demo cluster has no private applications (clusters/demo): no api-factory namespaces to bind to (the regression
+# skips their experiments: "namespace does not exist here").
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../experiments]
+patches:
+  - target: { kind: RoleBinding, namespace: api-factory-dev }
+    patch: |-
+      $patch: delete
+      kind: RoleBinding
+      metadata: { name: any }
+  - target: { kind: RoleBinding, namespace: api-factory-prod }
+    patch: |-
+      $patch: delete
+      kind: RoleBinding
+      metadata: { name: any }

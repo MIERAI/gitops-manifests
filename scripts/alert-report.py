@@ -176,7 +176,10 @@ def notifies(config, labels):
 def am_config_from_kustomization(text):
     """The alertmanager.config value a cluster overlay patches into platform-monitoring, or None."""
     for p in (yaml.safe_load(text) or {}).get("patches") or []:
-        for op in yaml.safe_load(p.get("patch") or "[]") or []:
+        ops = yaml.safe_load(p.get("patch") or "[]") or []
+        if not isinstance(ops, list):   # a strategic-merge patch (e.g. $patch: delete), not JSON 6902 operations
+            continue
+        for op in ops:
             if op.get("path", "").endswith("/alertmanager/config"):
                 return op["value"]
     return None
