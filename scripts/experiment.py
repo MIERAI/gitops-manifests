@@ -18,6 +18,7 @@ Experiment format (experiments/README.md):
   expect:
     fire:  [{alert, labels: {...}, within: 10m}]   each must fire within its time
     quiet: [{alert, labels: {...}}]                these must not fire (besides: no other page may fire)
+    may_fire: [{alert, labels: {...}}]             allowed, not required: neither expected nor unexpected
   recover: 10m                         after the fault: the fired alerts resolve within this (skip: --no-recover)
   ignore: '.+-(dev|staging)'           namespaces (regex) whose pages notify nobody on this cluster: not judged
   effect: {query: <promql>, within: 3m}  the fault must visibly bite (the query returns data) — Chaos Mesh's
@@ -158,6 +159,22 @@ def matches(alert, want):
     return alert.get("alertname") == want["alert"] and all(alert.get(k) == str(v) for k, v in want.get("labels", {}).items())
 
 
+def classify(a, fire, quiet, may_fire, ns, marked):
+    """What a firing alert (not in the baseline, not ignored) means for an experiment in namespace ns:
+    'quiet' (must stay quiet but fired), 'allowed' (may_fire), 'unexpected' (a page nobody expected), or None."""
+    if any(matches(a, q) for q in quiet):
+        return "quiet"
+    if any(matches(a, w) for w in fire):
+        return None
+    if any(matches(a, m) for m in may_fire):
+        return "allowed"
+    if a.get("severity") == "page" and (a.get("namespace") == ns or a.get("namespace") not in marked):
+        # judged here: pages in our namespace, and in namespaces no experiment (of anyone) marks
+        # (a page next door is the neighbour's result, not noise caused by us)
+        return "unexpected"
+    return None
+
+
 def describe(a):
     keep = ("namespace", "slo", "severity", "long", "short")
     return a["alertname"] + "{" + ", ".join(f"{k}={a[k]}" for k in keep if k in a) + "}"
@@ -243,6 +260,7 @@ class Run:
         x = self.x
         fire = x.get("expect", {}).get("fire", [])
         quiet = x.get("expect", {}).get("quiet", [])
+        may_fire = x.get("expect", {}).get("may_fire", [])
         before = firing()
         # alerts firing before the fault (another problem, not ours) are not counted for or against it
         baseline = {json.dumps(a, sort_keys=True) for a in before}
@@ -301,14 +319,16 @@ class Run:
                     k = json.dumps(a, sort_keys=True)
                     if k in baseline or k in unexpected or ignored(a):
                         continue
-                    if any(matches(a, q) for q in quiet):
+                    c = classify(a, fire, quiet, may_fire, self.ns, marked)
+                    if c == "quiet":
                         self.broken |= {j for j, q in enumerate(quiet) if matches(a, q)}
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
-                    elif a.get("severity") == "page" and not any(matches(a, w) for w in fire) \
-                            and (a.get("namespace") == self.ns or a.get("namespace") not in marked):
-                        # judged here: pages in our namespace, and in namespaces no experiment (of anyone) marks
-                        # (a page next door is the neighbour's result, not noise caused by us)
+                    elif c == "unexpected":
                         unexpected[k] = f"unexpected page: {describe(a)}"
+                    elif c == "allowed":
+                        unexpected[k] = None   # said once
+                        self.say(f"~ also fired (allowed): {describe(a)}")
+                        continue
                     else:
                         continue
                     self.fail(unexpected[k])
