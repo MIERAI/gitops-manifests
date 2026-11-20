@@ -152,7 +152,6 @@ class Regression:
                             r.record(self.a.record)
                         except RuntimeError as e:
                             self.broken.append(f"{name}: could not record: {e}")
-                    print("\n".join(["", f"# {name}: {'PASS' if r.ok else 'FAIL'}", *r.log, ""]), flush=True)
                     self.set(name, ns, "pass" if r.ok else "fail")
                     break
             except Exception as e:  # a crash of the scheduler around one experiment: that experiment is broken, go on
