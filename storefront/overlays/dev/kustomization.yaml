@@ -7,4 +7,4 @@ images:
   - name: ghcr.io/mierai/storefront-web
     newTag: "ebf1f99"
   - name: ghcr.io/mierai/storefront-api
-    newTag: "ebf1f99"
+    newTag: "fb6ca02"
