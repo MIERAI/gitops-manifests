@@ -9,17 +9,21 @@ cd "$(dirname "$0")/.."
 KC=${KUBECONFORM:-kubeconform}
 KY=${KYVERNO:-kyverno}
 CRDS='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'   # Argo CD / Rollouts
-mapfile -t APPS < <(python3 -I scripts/render.py list | awk '$2 !~ /^platform\// {print $1}')   # applications, not the platform
+PINNED='platform/pyrra/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'   # from our pinned CRD (the catalog's is older)
+mapfile -t APPS < <(python3 -I scripts/render.py list | awk '$2 !~ /^platform\// || $2 == "platform/slo" {print $1}')   # applications (and their SLOs), not the platform
 for a in "${APPS[@]}"; do
   echo "• $a"
-  python3 -I scripts/render.py render "$a" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
+  python3 -I scripts/render.py render "$a" | $KC -strict -summary -schema-location default -schema-location "$PINNED" -schema-location "$CRDS" -
 done
 # Applications: apps/ (kind) and every cluster built on it (clusters/<name>)
 for a in apps/ clusters/*/; do
   echo "• $a"
   kubectl kustomize "$a" | $KC -strict -summary -schema-location default -schema-location "$CRDS" -
 done
-for p in platform/*/; do echo "• $p"; kubectl kustomize "$p" > /dev/null; done
+for p in platform/*/; do
+  [ -f "$p/Chart.yaml" ] && continue   # a chart (platform/slo): rendered above, with each application's values
+  echo "• $p"; kubectl kustomize "$p" > /dev/null
+done
 
 echo "• admission policies"
 $KY test platform/policies/tests

@@ -1,0 +1,7 @@
+# Set by apps/applications.yaml from the application's app.yaml (format: docs in gitops-platform-blueprint docs/slo.md).
+app: ""            # application name
+env: ""            # environment; the namespace is the release namespace (<app>-<env>)
+slos: []
+# Alert layers (blueprint docs/slo.md §4): fast / medium burn page, slow burn and a missing SLI are tickets.
+severities: { fastBurn: page, mediumBurn: page, slowBurn: ticket, longTermBurn: ticket, absent: ticket }
+runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md

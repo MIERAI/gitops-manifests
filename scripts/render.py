@@ -8,6 +8,7 @@ every layout the Applications use.
 Reads the Application files with regular expressions (they follow apps/*.yaml) and the descriptors with appdesc.py.
 """
 import glob
+import json
 import os
 import re
 import subprocess
@@ -45,9 +46,11 @@ def render(app, root="."):
         cmd = ["helm", "template", app["release"], d, "--namespace", app["namespace"]]
         for v in app["values"]:
             cmd += ["-f", os.path.join(d, v)]
+        if "values_object" in app:  # helm.valuesObject (JSON is YAML)
+            cmd += ["-f", "-"]
     else:
         cmd = ["kubectl", "kustomize", d]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, input=json.dumps(app.get("values_object", {})))
     if r.returncode != 0:
         sys.exit(f"{app['name']}: {' '.join(cmd)}\n{r.stderr}")
     return r.stdout

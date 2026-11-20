@@ -1,12 +1,12 @@
-# Metrics, SLO alerts and a dashboard for sample-app.
-# SLO: 99.5% of /hello requests succeed (error budget 0.5%) — multi-window burn-rate alerts (Google SRE workbook).
+# Metrics and a dashboard for sample-app. The SLOs and their burn-rate alerts are declared in sample-app/app.yaml
+# (rendered by the platform into Pyrra objectives); the recording rules here only feed the dashboard.
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: sample-app
 spec:
   selector: { matchLabels: { app: sample-app } }
-  podTargetLabels: [rollouts-pod-template-hash]   # canary vs stable in the queries
+  podTargetLabels: [app, rollouts-pod-template-hash]   # app: the SLOs (app.yaml); the hash: canary vs stable
   podMetricsEndpoints:
     - { port: http, path: /metrics, interval: 10s }
 ---
@@ -16,7 +16,7 @@ metadata:
   name: sample-app
 spec:
   groups:
-    - name: sample-app.slo
+    - name: sample-app.dashboard
       rules:
         - record: sample_app:hello_errors:ratio_rate5m
           # errors / total; a namespace with no error series counts as 0 errors (total * 0). Neither errors/total
@@ -32,22 +32,6 @@ spec:
             (sum by (namespace) (rate(http_requests_total{route="GET /hello",code=~"5.."}[1h]))
                or sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h])) * 0)
               / sum by (namespace) (rate(http_requests_total{route="GET /hello"}[1h]))
-        - alert: SampleAppErrorBudgetFastBurn
-          # 14.4x burn: 2% of a 30-day budget in 1 hour
-          expr: sample_app:hello_errors:ratio_rate5m > (14.4 * 0.005) and sample_app:hello_errors:ratio_rate1h > (14.4 * 0.005)
-          for: 2m
-          labels: { severity: page }
-          annotations:
-            summary: "sample-app {{ $labels.namespace }}: /hello errors burn the error budget 14x"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#error-budget-burn
-        - alert: SampleAppHighLatency
-          expr: |
-            histogram_quantile(0.95, sum by (namespace, le) (rate(http_request_duration_seconds_bucket{route="GET /hello"}[5m]))) > 0.3
-          for: 5m
-          labels: { severity: ticket }
-          annotations:
-            summary: "sample-app {{ $labels.namespace }}: p95 latency of /hello above 300ms"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#latency
 ---
 apiVersion: v1
 kind: ConfigMap

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: { name: web }
 spec:
-  replicas: 1
+  replicas: 2   # a pod lost (node drain, crash) must not be an outage: tested by experiments/pod-kill
   selector: { matchLabels: { app: web } }
   template:
     metadata: { labels: { app: web } }
@@ -13,7 +13,7 @@ spec:
         - name: web
           image: ghcr.io/mierai/storefront-web
           env: [{ name: API_URL, value: "http://api:8080" }]
-          ports: [{ containerPort: 8080, name: http }]
+          ports: [{ containerPort: 8080, name: http }, { containerPort: 9090, name: metrics }]
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }
           resources:
