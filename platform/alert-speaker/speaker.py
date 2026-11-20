@@ -7,17 +7,21 @@ POST /         Alertmanager webhook payload (version 4). One sentence per group 
 GET  /healthz  ok
 
 Alert names are mapped to Chinese phrases (the Chinese voice cannot read CamelCase). During quiet hours
-(QUIET_HOURS, local time, default 23-8) nothing is spoken; the alert is only logged. Standard library only.
+(QUIET_HOURS, local time, default 21-8: people sleep next to the laptop) nothing is spoken; the alert is logged and
+held. When the quiet hours end, what is still firing of it is spoken once ("夜里的告警，还没有恢复"); what resolved during
+the night is not. Standard library only.
 """
 import datetime
 import json
 import os
 import sys
+import threading
+import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SPEAKD_URL = os.environ.get("SPEAKD_URL", "http://10.42.0.1:8770/")
-QUIET = os.environ.get("QUIET_HOURS", "23-8")
+QUIET = os.environ.get("QUIET_HOURS", "21-8")
 REPEAT = float(os.environ.get("REPEAT_HOURS", "12")) * 3600
 TZ = datetime.timezone(datetime.timedelta(hours=int(os.environ.get("TZ_OFFSET_HOURS", "9"))))
 
@@ -72,13 +76,19 @@ def sentence(alerts, resolved):
 
 
 spoken = {}  # fingerprint → (status, when spoken)
+held = {}    # fingerprint → alert: started firing during the quiet hours, not spoken yet
+lock = threading.Lock()
+
+
+def fingerprint(a):
+    return a.get("fingerprint") or json.dumps(a.get("labels", {}), sort_keys=True)
 
 
 def changes(alerts, now):
     """The alerts whose status changed since we last spoke them (or whose reminder is due); remembers them."""
     out = {"firing": [], "resolved": []}
     for a in alerts:
-        fp, st = a.get("fingerprint") or json.dumps(a.get("labels", {}), sort_keys=True), a.get("status")
+        fp, st = fingerprint(a), a.get("status")
         last = spoken.get(fp)
         if st == "resolved":
             if last and last[0] == "firing":   # never announce the end of what was never announced
@@ -94,6 +104,44 @@ def quiet(now):
     start, end = (int(x) for x in QUIET.split("-"))
     h = now.hour
     return (start <= h or h < end) if start > end else (start <= h < end)
+
+
+def hold(c):
+    """Quiet hours: remember what started firing, forget what resolved (nobody heard it start)."""
+    for a in c["firing"]:
+        held[fingerprint(a)] = a
+    for a in c["resolved"]:
+        held.pop(fingerprint(a), None)
+
+
+def morning():
+    """The held alerts as one announcement (one sentence per group), and forget them; None if nothing is held."""
+    if not held:
+        return None
+    groups = {}
+    for a in held.values():
+        lb = a.get("labels", {})
+        groups.setdefault((lb.get("alertname"), lb.get("namespace")), []).append(a)
+    held.clear()
+    return "夜里的告警，还没有恢复。" + "".join(sentence(g, False) for g in groups.values())
+
+
+def say(text):
+    try:
+        speak(text)
+        log(action="spoken", text=text)
+    except Exception as e:  # speakd down: keep the webhook healthy, the alert is still in Alertmanager
+        log(action="speak_failed", text=text, error=str(e))
+
+
+def wake_up():
+    """Speaks the held alerts once the quiet hours are over (Alertmanager may send nothing new for hours)."""
+    while True:
+        with lock:
+            text = None if quiet(datetime.datetime.now(TZ)) else morning()
+        if text:
+            say(text)
+        time.sleep(60)
 
 
 def speak(text):
@@ -119,16 +167,18 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_response(400); self.end_headers(); return
         now = datetime.datetime.now(TZ)
-        c = changes(payload.get("alerts", []), now.timestamp())
-        for text in [sentence(c[k], k == "resolved") for k in ("firing", "resolved") if c[k]]:
+        with lock:
+            c = changes(payload.get("alerts", []), now.timestamp())
+            texts = [sentence(c[k], k == "resolved") for k in ("firing", "resolved") if c[k]]
             if quiet(now):
-                log(action="quiet", text=text)
-                continue
-            try:
-                speak(text)
-                log(action="spoken", text=text)
-            except Exception as e:  # speakd down: keep the webhook healthy, the alert is still in Alertmanager
-                log(action="speak_failed", text=text, error=str(e))
+                hold(c)
+                for text in texts:
+                    log(action="quiet", text=text)
+                texts = []
+            else:
+                texts = [t for t in [morning()] if t] + texts
+        for text in texts:
+            say(text)
         self.send_response(200)
         self.end_headers()
 
@@ -138,4 +188,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    threading.Thread(target=wake_up, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
