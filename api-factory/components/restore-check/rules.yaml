@@ -10,11 +10,4 @@ spec:
           expr: >-
             kube_job_status_completion_time{job_name=~"restore-check-.*"}
             - on (namespace, job_name) kube_job_status_start_time{job_name=~"restore-check-.*"}
-        - alert: DailyRestoreCheckFailed
-          # daily: no success for 26 h = last night's check failed (or did not run)
-          expr: time() - kube_cronjob_status_last_successful_time{cronjob="restore-check"} > 26 * 3600
-          for: 10m
-          labels: { severity: ticket }
-          annotations:
-            summary: "{{ $labels.namespace }}: the daily restore check has not succeeded for 26 hours"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#daily-restore-check
+        # "has it succeeded lately" is the restore-check SLO (api-factory/app.yaml, a ticket)

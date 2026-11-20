@@ -1,4 +1,4 @@
-"""Render what Argo CD renders, for every Application of apps/ whose source is this repository: a kustomize directory
+"""Render what Argo CD renders, for every Application of apps/ (and of clusters/<name>/) whose source is this repository: a kustomize directory
 (kubectl kustomize) or a Helm chart with value files (helm template). Used by validate.sh and diff.sh, so both cover
 every layout the Applications use.
 
@@ -20,9 +20,9 @@ REPO = "https://github.com/MIERAI/gitops-manifests.git"
 
 
 def apps(root="."):
-    """Applications listed in apps/*.yaml, then those the ApplicationSet derives from */app.yaml."""
+    """Applications listed in apps/*.yaml and clusters/*/*.yaml, then those the ApplicationSet derives from */app.yaml."""
     out = []
-    for f in sorted(glob.glob(os.path.join(root, "apps", "*.yaml"))):
+    for f in sorted(glob.glob(os.path.join(root, "apps", "*.yaml"))) + sorted(glob.glob(os.path.join(root, "clusters", "*", "*.yaml"))):
         s = open(f).read()
         if not re.search(r"^kind: Application$", s, re.M) or f"repoURL: {REPO}" not in s:  # not the ApplicationSet
             continue

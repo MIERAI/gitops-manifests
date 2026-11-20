@@ -1,0 +1,44 @@
+hypothesis: >-
+  The negative test of the backup SLOs: dev's database writing all the time (a segment switched and archived every 5
+  minutes) pages nobody and raises no backup ticket. Before the fix, an idle database paged ("no WAL archived for 15
+  minutes") although nothing was at risk; with writes the archive must keep up and stay quiet too.
+namespace: api-factory-dev
+fault: []
+load:
+  # dev's database is idle (read-only synthetic traffic): without writes there is no WAL, and nothing to archive.
+  # One tiny transaction every 15s (txid_current() writes a commit record, no data): archive_timeout (5 min) then
+  # switches a segment every 5 minutes, like a database in use.
+  - apiVersion: batch/v1
+    kind: Job
+    metadata: { name: experiment-wal-writes }
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: { runAsNonRoot: true, runAsUser: 26, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: psql
+              image: ghcr.io/cloudnative-pg/postgresql:16.10
+              command: [sh, -c, 'while true; do psql -X -qtAc "SELECT txid_current()" >/dev/null || echo "write failed"; sleep 15; done']
+              env:
+                - { name: PGHOST, value: postgres-rw }
+                - { name: PGDATABASE, value: factory }
+                - name: PGUSER
+                  valueFrom: { secretKeyRef: { name: postgres-app, key: username } }
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
+              resources:
+                requests: { cpu: 10m, memory: 16Mi }
+                limits: { memory: 64Mi }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+timeout: 25m
+hold: 25m
+expect:
+  fire: []
+  quiet:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-dev, slo: api-factory-recovery-point } }
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-dev, slo: api-factory-base-backup } }
+    - { alert: PostgresWalArchivingFailing, labels: { namespace: api-factory-dev } }
+    - { alert: SLOMetricAbsent, labels: { namespace: api-factory-dev, slo: api-factory-recovery-point } }

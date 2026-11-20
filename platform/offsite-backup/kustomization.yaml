@@ -7,7 +7,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: backup-offsite
-resources: [cronjob.yaml, rules.yaml]
+resources: [cronjob.yaml]   # its SLO: slo.yaml (Application platform-offsite-backup-slo)
 configMapGenerator:
   - name: offsite-backup
     files: [sync.sh, known_hosts]

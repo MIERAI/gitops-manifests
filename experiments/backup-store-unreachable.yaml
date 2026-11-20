@@ -1,0 +1,56 @@
+hypothesis: >-
+  dev's database keeps writing while its pod cannot reach the object store (partition from the Postgres pod to
+  seaweedfs; the object store itself is untouched). WAL segments pile up unarchived, so the recovery point falls
+  behind: after 10 minutes of a waiting segment the recovery-point SLI turns bad and its fast burn pages; the cause
+  (archive_command failing) is a ticket. The base backup taken last night is still fresh: its SLO stays quiet.
+namespace: api-factory-dev
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: NetworkChaos
+    metadata: { name: backup-store-unreachable }
+    spec:
+      action: partition
+      mode: all
+      selector: { labelSelectors: { cnpg.io/cluster: postgres } }
+      direction: to
+      externalTargets: [seaweedfs.object-storage.svc.cluster.local]
+      duration: 30m
+load:
+  # dev's database is idle (read-only synthetic traffic): without writes there is no WAL, and nothing to archive.
+  # One tiny transaction every 15s (txid_current() writes a commit record, no data): archive_timeout (5 min) then
+  # switches a segment every 5 minutes, like a database in use.
+  - apiVersion: batch/v1
+    kind: Job
+    metadata: { name: experiment-wal-writes }
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext: { runAsNonRoot: true, runAsUser: 26, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: psql
+              image: ghcr.io/cloudnative-pg/postgresql:16.10
+              command: [sh, -c, 'while true; do psql -X -qtAc "SELECT txid_current()" >/dev/null || echo "write failed"; sleep 15; done']
+              env:
+                - { name: PGHOST, value: postgres-rw }
+                - { name: PGDATABASE, value: factory }
+                - name: PGUSER
+                  valueFrom: { secretKeyRef: { name: postgres-app, key: username } }
+                - name: PGPASSWORD
+                  valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
+              resources:
+                requests: { cpu: 10m, memory: 16Mi }
+                limits: { memory: 64Mi }
+              securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+timeout: 25m
+expect:
+  fire:
+    # first segment switch ≤ ~1 min after the writes start, 10 min waiting, then the 1h/5m windows above 14× the
+    # budget rate (≈4 min of bad samples) and Pyrra's "for"
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-dev, slo: api-factory-recovery-point, severity: page, long: 1h }, within: 25m }
+    - { alert: PostgresWalArchivingFailing, labels: { namespace: api-factory-dev, severity: ticket }, within: 25m }
+  quiet:
+    - { alert: ErrorBudgetBurn, labels: { slo: api-factory-base-backup } }
+recover: 15m

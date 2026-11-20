@@ -21,10 +21,16 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | api-factory-one-pod-down | one of two API pods fails 10 min | nothing pages |
 | api-factory-db-slow | API → Postgres packets +200ms (NetworkChaos) | rpc-latency pages; rpc-availability and health-probe quiet |
 | api-factory-db-partition | API ↮ Postgres partition (NetworkChaos) | health-probe pages (predicted: rpc-availability does not, readiness hides the failures) |
+| backup-store-unreachable | api-factory dev: Postgres pod → object store partitioned (NetworkChaos), with writes | recovery-point SLO pages; `PostgresWalArchivingFailing` ticket; base-backup SLO quiet |
+| backup-normal-writes | none: dev's database writing (WAL archived every 5 min) | no backup page or ticket (the negative test) |
 
 Format: `hypothesis`, `namespace`, `fault` (Chaos Mesh objects, created in the namespace and always deleted),
-`timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
+`load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
+fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
 `within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault).
 
 The SLO alerts come from Pyrra: `ErrorBudgetBurn` with labels `slo`, `namespace`, `severity` (page / ticket) and the
 windows `long` / `short` (fast burn: `long: 1h`, 14× the budget rate, for 2m); `SLOMetricAbsent` (ticket).
+Scheduled jobs (backups, restore check, off-site copy) have time-based SLOs that only turn bad after a day (`age`
+max 26h / 3h): a failed nightly run cannot be watched end to end here; what fits in 30 minutes is the WAL
+recovery point.

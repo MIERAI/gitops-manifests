@@ -1,0 +1,22 @@
+# laptop only: the off-site copy's SLO (values: platform/offsite-backup/slo.yaml), rendered by the platform's SLO
+# chart like an application's, into the job's namespace (every query is scoped to it)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-offsite-backup-slo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/slo
+    helm:
+      releaseName: offsite-backup-slo
+      valueFiles: [../offsite-backup/slo.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backup-offsite      # created by infrastructure-live (holds the secret)
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
