@@ -20,6 +20,7 @@ fault:
         mode: all
         selector: { labelSelectors: { app: api-factory } }
       duration: 30m
+effect: { query: 'max(probe_success{namespace="api-factory-prod", slo_probe="api-factory-health-probe"}) == 0', within: 3m }   # the database ping of /healthz fails
 timeout: 12m
 hold: 8m
 expect:
