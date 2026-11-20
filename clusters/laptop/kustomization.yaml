@@ -2,7 +2,7 @@
 # - object storage outside the cluster (host SeaweedFS on its own disk): backups survive a cluster rebuild
 # - hourly encrypted off-site copy of the backups to the phone (platform/offsite-backup), and its SLO
 # - delivery board: every change of every application, from PR to prod, and the promotion gates (platform/delivery-board, :30090)
-# - Alertmanager routes our alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
+# - Alertmanager routes our prod alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
 #   inside one process
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -27,12 +27,25 @@ patches:
         value:
           route:
             receiver: "null"
-            group_by: [alertname, namespace]
+            group_by: [alertname, namespace, slo]
             group_wait: 30s
             group_interval: 5m
             repeat_interval: 12h
             routes:
+              # only prod notifies (gitops-platform-blueprint docs/slo.md §4): dev / staging alerts stay visible in
+              # Alertmanager and Grafana. Their low traffic and the fault experiments run there made every short fault
+              # page twice (fast burn, then the 6h window after recovery).
+              - { receiver: "null", matchers: ['namespace=~".+-(dev|staging)"'] }
               - { receiver: speaker, matchers: ['severity=~"page|ticket"'] }
+          # one incident, one announcement: while an SLO's fast burn (1h window) pages, its medium burn (6h) page and
+          # its tickets stay quiet
+          inhibit_rules:
+            - source_matchers: ['alertname="ErrorBudgetBurn"', 'severity="page"', 'long="1h"']
+              target_matchers: ['alertname="ErrorBudgetBurn"', 'severity="page"', 'long="6h"']
+              equal: [namespace, slo]
+            - source_matchers: ['alertname="ErrorBudgetBurn"', 'severity="page"']
+              target_matchers: ['alertname="ErrorBudgetBurn"', 'severity="ticket"']
+              equal: [namespace, slo]
           receivers:
             - name: "null"
             - name: speaker
