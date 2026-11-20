@@ -62,4 +62,9 @@ def applications(d, root="."):
                 path, values = f"{d['dir']}/{c['kustomize']}/{env}", []
             out.append({"name": f"{c['name']}-{env}", "path": path, "namespace": f"{d['name']}-{env}", "values": values,
                         "release": c["name"], "enforced": True})
+    if d.get("slos"):  # the platform's SLO chart, values from app.yaml
+        for e in d["environments"]:
+            out.append({"name": f"{d['name']}-slo-{e['name']}", "path": "platform/slo", "namespace": f"{d['name']}-{e['name']}",
+                        "values": [], "release": f"{d['name']}-slo", "enforced": True,
+                        "values_object": {"app": d["name"], "env": e["name"], "slos": d["slos"]}})
     return out

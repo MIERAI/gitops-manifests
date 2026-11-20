@@ -1,0 +1,40 @@
+{{- /*
+One ServiceLevelObjective per slo. Every query gets namespace="<release namespace>": one declaration serves every
+environment, and the namespace becomes a label of the recording rules and alerts (the series of dev and prod differ).
+  availability: bad = metric{namespace, matchers, errors}  among  metric{namespace, matchers}
+  latency:      good = metric_bucket{namespace, matchers, le=threshold}  among  metric_count{namespace, matchers}
+*/}}
+{{- range .Values.slos }}
+{{- $sel := printf "namespace=%q" $.Release.Namespace }}
+{{- $kind := ternary "availability" "latency" (hasKey . "availability") }}
+{{- $sli := index . $kind }}
+{{- if $sli.matchers }}{{ $sel = printf "%s, %s" $sel $sli.matchers }}{{ end }}
+---
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: {{ $.Values.app }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    pyrra.dev/app: {{ $.Values.app | quote }}
+    pyrra.dev/env: {{ $.Values.env | quote }}
+  annotations:
+    pyrra.dev/runbook: {{ printf "%s#%s" $.Values.runbook (ternary "error-budget-burn" "latency" (eq $kind "availability")) | quote }}
+    pyrra.dev/summary: {{ printf "%s %s: %s SLO %v%% is burning its error budget" $.Values.app $.Values.env .name .objective | quote }}
+spec:
+  description: {{ .description | default (printf "%s %s" $.Values.app .name) | quote }}
+  target: {{ .objective | toString | quote }}
+  window: {{ .window | default "28d" }}
+  indicator:
+    {{- if eq $kind "availability" }}
+    ratio:
+      errors: { metric: {{ printf "%s{%s, %s}" $sli.metric $sel $sli.errors | quote }} }
+      total: { metric: {{ printf "%s{%s}" $sli.metric $sel | quote }} }
+    {{- else }}
+    latency:
+      success: { metric: {{ printf "%s_bucket{%s, le=%q}" $sli.metric $sel (toString $sli.threshold) | quote }} }
+      total: { metric: {{ printf "%s_count{%s}" $sli.metric $sel | quote }} }
+    {{- end }}
+  alerting:
+    severities: {{ toJson $.Values.severities }}
+{{- end }}

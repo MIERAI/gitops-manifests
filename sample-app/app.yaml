@@ -17,3 +17,14 @@ services:
 # stable pods (seen in the fault injection demo).
 ignoreDifferences:
   - { group: "", kind: Service, jqPathExpressions: ['.spec.selector["rollouts-pod-template-hash"]'] }
+# SLOs (gitops-platform-blueprint docs/slo.md): rendered per environment into Pyrra objectives and burn-rate alerts
+slos:
+  - name: hello-availability
+    description: GET /hello answered without a server error. Counts the synthetic traffic and the canary load tests
+      too; blind to requests that never reach a pod.
+    objective: 99.5
+    availability: { metric: http_requests_total, matchers: 'app="sample-app", route="GET /hello"', errors: 'code=~"5.."' }
+  - name: hello-latency
+    description: GET /hello answered within 250ms (a bucket edge of the app's histogram).
+    objective: 99
+    latency: { metric: http_request_duration_seconds, matchers: 'app="sample-app", route="GET /hello"', threshold: "0.25" }

@@ -12,3 +12,4 @@ resources:
   - platform-monitoring.yaml
   - platform-object-storage.yaml
   - platform-policies.yaml
+  - platform-pyrra.yaml          # SLOs (app.yaml slos → platform/slo chart → Pyrra)

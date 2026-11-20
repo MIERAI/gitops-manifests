@@ -2,6 +2,8 @@
 # per component × environment, named <component>-<env>, deployed into the namespace <name>-<env>.
 #   component kustomize: <dir>  → path <app>/<dir>/<env>
 #   component helm: <dir>       → chart <app>/<dir>/chart, values <app>/<dir>/values-<env>.yaml
+#   slos (app.yaml)             → one more component <name>-slo: chart platform/slo, values {app, env, slos}
+#                                 (Pyrra ServiceLevelObjectives scoped to the namespace; gitops-platform-blueprint docs/slo.md)
 # The namespace gets the labels the platform keys on: admission policies (enforced), the GHCR pull secret (cloned by
 # platform/policies/ghcr-pull.yaml), image signatures (when signedImages). ignoreDifferences (app.yaml) is passed
 # through, with RespectIgnoreDifferences. scripts/render.py renders the same way for validate.sh / diff.sh: keep both
@@ -28,6 +30,9 @@ spec:
                     elementsYaml: |
                       {{- range .components }}
                       - component: {{ toJson . }}
+                      {{- end }}
+                      {{- if hasKey . "slos" }}
+                      - component: {"name": "{{ .name }}-slo", "slo": true}
                       {{- end }}
           - list:
               elementsYaml: |
@@ -56,7 +61,12 @@ spec:
   templatePatch: |
     spec:
       source:
-      {{- if hasKey .component "helm" }}
+      {{- if hasKey .component "slo" }}
+        path: platform/slo
+        helm:
+          releaseName: "{{ .component.name }}"
+          valuesObject: {{ toJson (dict "app" .name "env" .env.name "slos" .slos) }}
+      {{- else if hasKey .component "helm" }}
         path: "{{ .path.path }}/{{ .component.helm }}/chart"
         helm:
           releaseName: "{{ .component.name }}"
