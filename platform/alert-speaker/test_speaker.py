@@ -15,6 +15,7 @@ def alert(fp, status, slo, severity="page", ns="api-factory-prod", name="ErrorBu
 class Speaker(unittest.TestCase):
     def setUp(self):
         s.spoken.clear()
+        s.held.clear()
 
     def test_group_is_one_sentence_naming_the_slos(self):
         c = s.changes([alert("1", "firing", "api-factory-rpc-latency"), alert("2", "firing", "api-factory-rpc-availability")], 0)
@@ -35,6 +36,17 @@ class Speaker(unittest.TestCase):
         s.changes([alert("1", "firing", "api-factory-rpc-latency")], 0)
         c = s.changes([alert("1", "resolved", "api-factory-rpc-latency")], 60)
         self.assertEqual(s.sentence(c["resolved"], True), "已恢复。API 工厂生产环境。接口延迟，错误预算消耗过快。")
+
+    def test_quiet_hours_21_to_8(self):
+        at = lambda h: s.datetime.datetime(2026, 11, 21, h, 0, tzinfo=s.TZ)
+        self.assertEqual([h for h in range(24) if s.quiet(at(h))], [0, 1, 2, 3, 4, 5, 6, 7, 21, 22, 23])
+
+    def test_night_alerts_still_firing_are_spoken_in_the_morning(self):
+        s.hold(s.changes([alert("1", "firing", "api-factory-rpc-latency"), alert("2", "firing", "storefront-web-probe", ns="storefront-prod")], 0))
+        s.hold(s.changes([alert("2", "resolved", "storefront-web-probe", ns="storefront-prod")], 60))   # over before morning
+        self.assertEqual(s.morning(), "夜里的告警，还没有恢复。紧急告警。API 工厂生产环境。接口延迟，错误预算消耗过快。")
+        self.assertIsNone(s.morning())   # once
+        self.assertEqual(s.changes([alert("1", "firing", "api-factory-rpc-latency")], 120)["firing"], [])   # not again
 
     def test_ticket_and_names(self):
         a = alert("3", "firing", "storefront-order-freshness", "ticket", "storefront-staging", "SLOMetricAbsent")
