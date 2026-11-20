@@ -9,9 +9,14 @@ spec:
     spec:
       imagePullSecrets: [{ name: ghcr-pull }]
       securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
+      volumes: [{ name: faults, configMap: { name: storefront-faults, optional: true } }]
       containers:
         - name: api
           image: ghcr.io/mierai/storefront-api
+          # fault switches for the experiments (storefront internal/fault): an experiment creates the ConfigMap
+          # storefront-faults (e.g. products-errors: "1"), deleting it turns the fault off; absent = no fault
+          env: [{ name: FAULTS_DIR, value: /etc/faults }]
+          volumeMounts: [{ name: faults, mountPath: /etc/faults, readOnly: true }]
           ports: [{ containerPort: 8080, name: http }, { containerPort: 9090, name: metrics }]
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }

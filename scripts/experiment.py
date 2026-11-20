@@ -155,6 +155,9 @@ class Run:
             self.fail(f"expected alert already firing before the fault: {stale} — cannot test it now")
             return
         objs = x.get("fault") or []
+        if any(not o.get("apiVersion", "").startswith("chaos-mesh.org/") for o in objs) and not x.get("effect"):
+            raise RuntimeError("a fault that is not a Chaos Mesh object (e.g. a fault switch ConfigMap) needs `effect`: "
+                               "nothing else proves it bites")
         manifest = self.manifest(objs)
         loads = x.get("load") or []
         load_manifest = self.manifest(loads)
@@ -251,7 +254,9 @@ class Run:
         """Chaos Mesh accepts an object and may still inject nothing (a denied pause image, a daemon with an old
         certificate): then "no alert fired" would test nothing. Fail unless every object is AllInjected."""
         t = time.time()
-        while True:
+        objs = [o for o in objs if o.get("apiVersion", "").startswith("chaos-mesh.org/")]   # others (a fault switch
+        # ConfigMap) have no injection status: their `effect` query is the proof
+        while objs:
             pending = []
             for o in objs:
                 st = json.loads(kubectl("get", "-n", self.ns, o["kind"].lower(), o["metadata"]["name"], "-o", "json")).get("status", {})
