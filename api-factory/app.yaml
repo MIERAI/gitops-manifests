@@ -5,6 +5,7 @@
 name: api-factory
 repo: MIERAI/api-factory
 signedImages: false
+private: true                    # its images are private: left out of the demo cluster (clusters/demo)
 environments:
   - { name: dev, url: "http://100.90.245.89:30080" }
   - name: prod

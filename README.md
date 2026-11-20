@@ -6,6 +6,13 @@ The desired state of every workload, per environment. Argo CD (installed by
 [infrastructure-live](https://github.com/MIERAI/infrastructure-live)) watches this repository and keeps the cluster in sync.
 **Changing the cluster = committing here.**
 
+## Run it yourself
+
+A local cluster that syncs this repository, without our keys or tokens: infrastructure-live
+[`tofu/demo`](https://github.com/MIERAI/infrastructure-live/tree/main/tofu/demo) (one command; the platform and every
+public application, `clusters/demo`). To change things, fork this repository, run `scripts/fork.sh <your owner>`,
+commit, and build the demo cluster from your fork.
+
 ## Add an application: one directory
 
 ```
@@ -25,6 +32,7 @@ Every application is registered this way: api-factory, sample-app, storefront.
 
 ```
 apps/                      Argo CD Applications (app of apps): applications.yaml (every */app.yaml) + the platform
+clusters/demo|laptop/      per cluster: demo = apps/ without private applications; laptop = apps/ + its extras
 api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
 sample-app/base|overlays/  the public reference app
