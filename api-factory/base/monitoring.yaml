@@ -1,6 +1,5 @@
-# Metrics, alerts and a dashboard for api-factory.
-# Server-side errors only (internal / unavailable / unknown / deadline_exceeded / data_loss): client errors such as
-# invalid_argument, not_found or unauthenticated are the API working as specified.
+# Metrics and a dashboard for api-factory. The SLOs and their burn-rate alerts are declared in api-factory/app.yaml
+# (rendered by the platform into Pyrra objectives); what counts as a server error is written there.
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -9,35 +8,6 @@ spec:
   selector: { matchLabels: { app: api-factory } }
   podMetricsEndpoints:
     - { port: metrics, path: /metrics, interval: 10s }   # internal port, no auth (METRICS_PORT)
----
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
-metadata:
-  name: api-factory
-spec:
-  groups:
-    - name: api-factory.slo
-      rules:
-        - record: api_factory:server_errors:ratio_rate5m
-          expr: |
-            (sum by (namespace) (rate(rpc_requests_total{code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"}[5m]))
-               or sum by (namespace) (rate(rpc_requests_total[5m])) * 0)
-              / sum by (namespace) (rate(rpc_requests_total[5m]))
-        - alert: ApiFactoryServerErrors
-          expr: api_factory:server_errors:ratio_rate5m > 0.01
-          for: 5m
-          labels: { severity: page }
-          annotations:
-            summary: "api-factory {{ $labels.namespace }}: more than 1% of RPCs fail on the server side"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#error-budget-burn
-        - alert: ApiFactoryHighLatency
-          expr: |
-            histogram_quantile(0.95, sum by (namespace, le) (rate(rpc_request_duration_seconds_bucket[5m]))) > 0.5
-          for: 10m
-          labels: { severity: ticket }
-          annotations:
-            summary: "api-factory {{ $labels.namespace }}: p95 RPC latency above 500ms"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#latency
 ---
 apiVersion: v1
 kind: ConfigMap

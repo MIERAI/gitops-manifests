@@ -18,6 +18,9 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | api-down | every api pod fails | web availability pages; api "SLI absent" ticket |
 | sample-app-down | every sample-app pod fails | sample-app availability pages |
 | quiet-traffic | none: 2h of normal traffic | nothing pages (the negative test) |
+| api-factory-one-pod-down | one of two API pods fails 10 min | nothing pages |
+| api-factory-db-slow | API → Postgres packets +200ms (NetworkChaos) | rpc-latency pages; rpc-availability and health-probe quiet |
+| api-factory-db-partition | API ↮ Postgres partition (NetworkChaos) | health-probe pages (predicted: rpc-availability does not, readiness hides the failures) |
 
 Format: `hypothesis`, `namespace`, `fault` (Chaos Mesh objects, created in the namespace and always deleted),
 `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,

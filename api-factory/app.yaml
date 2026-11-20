@@ -15,3 +15,28 @@ components:
   - { name: api-factory, kustomize: overlays }   # overlays/<env>: the API + its migration image (moved together)
 services:
   - { name: api, image: ghcr.io/mierai/api-factory, component: api-factory, workload: { name: api-factory, container: api } }
+# SLOs (gitops-platform-blueprint docs/slo.md): rendered per environment into Pyrra objectives and burn-rate alerts.
+# One SLO over every RPC, not one per procedure: they are one shape (generated read-only queries), one process and one
+# database, so they fail together; the dashboard splits by procedure. A broken procedure with little traffic can stay
+# under the burn thresholds: that is the price of not having ~40 SLOs that each see a handful of requests.
+slos:
+  - name: rpc-availability
+    description: An RPC answered without a server error (internal / unavailable / unknown / deadline_exceeded /
+      data_loss), as counted by the API itself. Client errors (invalid_argument, not_found, unauthenticated...) and
+      canceled (the caller gave up; a slow answer burns rpc-latency instead) are not bad events. Counts the synthetic
+      traffic and dev's post-deploy load test. Blind to requests that never reach a pod, including every pod taken out
+      of the Service by its readiness probe (which pings the database); health-probe sees those.
+    objective: 99.9
+    availability: { metric: rpc_requests_total, errors: 'code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"' }
+  - name: rpc-latency
+    description: An RPC answered within 100ms (a bucket edge of the API's histogram), whatever its result code. The
+      factory's perf gate allows 50ms of database time per query; normally p99 is under 10ms. Same blind spot as
+      rpc-availability.
+    objective: 99
+    latency: { metric: rpc_request_duration_seconds, threshold: "0.1" }
+  - name: health-probe
+    description: /healthz (process up and the database answering a ping within 1s) answered 2xx through the Service,
+      from outside the pods (blackbox prober, every 15s). Sees what the in-pod SLIs cannot (no ready pod, a broken
+      Service), but not an RPC itself (it is unauthenticated and runs no query), and only at probe granularity.
+    objective: 99.5
+    probe: { service: api-factory, port: 8080, path: /healthz }
