@@ -159,10 +159,19 @@ def matches(alert, want):
     return alert.get("alertname") == want["alert"] and all(alert.get(k) == str(v) for k, v in want.get("labels", {}).items())
 
 
+def quiet_matches(alert, q):
+    """A quiet entry without a severity means "must not page": the slow-burn tickets (1d / 4d windows) of a lab
+    namespace that gets a fault every day stay above 1x however well the SLO works, and are not what an experiment
+    predicts. Name `severity` in the entry to hold a ticket quiet too."""
+    if "severity" not in q.get("labels", {}) and alert.get("severity") != "page":
+        return False
+    return matches(alert, q)
+
+
 def classify(a, fire, quiet, may_fire, ns, marked):
     """What a firing alert (not in the baseline, not ignored) means for an experiment in namespace ns:
     'quiet' (must stay quiet but fired), 'allowed' (may_fire), 'unexpected' (a page nobody expected), or None."""
-    if any(matches(a, q) for q in quiet):
+    if any(quiet_matches(a, q) for q in quiet):
         return "quiet"
     if any(matches(a, w) for w in fire):
         return None
@@ -321,7 +330,7 @@ class Run:
                         continue
                     c = classify(a, fire, quiet, may_fire, self.ns, marked)
                     if c == "quiet":
-                        self.broken |= {j for j, q in enumerate(quiet) if matches(a, q)}
+                        self.broken |= {j for j, q in enumerate(quiet) if quiet_matches(a, q)}
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
                     elif c == "unexpected":
                         unexpected[k] = f"unexpected page: {describe(a)}"

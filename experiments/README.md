@@ -13,7 +13,8 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | Experiment | Fault | Expected |
 |---|---|---|
 | api-errors | api responses replaced by 503 (HTTPChaos) | web availability pages; web latency quiet |
-| api-slow | api packets +800ms (NetworkChaos) | web latency pages; web availability quiet |
+| api-slow | api packets +800ms (NetworkChaos) | web latency pages; web availability quiet — skipped: 800ms per packet made every call time out (superseded by api-slow-v2) |
+| api-slow-v2 | api packets +300ms (NetworkChaos) | web latency pages; web availability quiet |
 | api-pod-failure | one of two api pods fails 10 min | nothing pages |
 | api-down | every api pod fails | web availability pages; api "SLI absent" ticket |
 | sample-app-down | every sample-app pod fails | sample-app availability pages |
@@ -28,7 +29,8 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | storefront-worker-down | every worker fails | order-freshness and order-completeness page; order-intake quiet |
 | storefront-worker-slow | Postgres → workers +2s per packet (~8s per order, still above arrivals) | nothing pages |
 | storefront-worker-overloaded | Postgres → workers +8s per packet (below daytime arrivals) | order-freshness pages; completeness quiet |
-| storefront-db-unreachable | Postgres → web and workers: every packet dropped | order-intake pages; freshness "SLI absent" ticket |
+| storefront-db-unreachable | Postgres → web and workers: every packet dropped | order-intake pages; freshness "SLI absent" ticket  — skipped: the absent ticket's 10m was too tight (superseded by -v2) |
+| storefront-db-unreachable-v2 | the same | the same; the absent ticket within 13m |
 
 Several people / agents can run experiments at once: the runner marks the namespace (annotation
 `gitops-platform/experiment`, the lock: one experiment per namespace) and keeps it marked 30 min after the fault
@@ -54,7 +56,7 @@ Format: `hypothesis`, `namespace`, `effect` (a PromQL query that returns data on
 objects with `spec.duration`, or a fault-switch ConfigMap; created in the namespace and always deleted),
 `load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
 fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
-`within`), `expect.quiet`, `expect.may_fire` (allowed, not required: like `fire` without `within`; logged "~ also fired"), `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
+`within`), `expect.quiet` (must not page; an entry naming `severity` holds that severity quiet instead: a lab namespace with a fault every day keeps its 1d / 4d slow-burn tickets firing), `expect.may_fire` (allowed, not required: like `fire` without `within`; logged "~ also fired"), `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
 pages notify nobody), `skip` (why the scheduled regression cannot run it) and `clusters` (only
 on these, e.g. `[kind]`; default: every lab cluster).
 

@@ -6,6 +6,7 @@ hypothesis: >-
   not burn; its SLI goes absent → SLOMetricAbsent (ticket) after ~6.5 min (for 6m). order-completeness stays quiet
   (nothing is created, nothing is checked). web-availability and web-probe stay quiet.
 namespace: storefront-dev
+skip: "superseded by storefront-db-unreachable-v2 (SLOMetricAbsent within 10m was too tight: fired at 8.7 min, seen by the runner at 10.9)"
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1
     kind: NetworkChaos

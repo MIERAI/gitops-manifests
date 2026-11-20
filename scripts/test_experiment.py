@@ -37,6 +37,14 @@ class Classify(unittest.TestCase):
     def test_quiet_wins_over_may_fire(self):
         self.assertEqual(e.classify(alert("x"), [], [want("x")], [want("x")], "api-factory-prod", set()), "quiet")
 
+    def test_quiet_without_severity_means_no_page(self):
+        self.assertEqual(self.c(alert("base-backup")), "quiet")
+        self.assertIsNone(self.c(alert("base-backup", severity="ticket", long="1d")))   # a slow burn of a lab namespace
+
+    def test_quiet_with_severity_holds_tickets_too(self):
+        q = [{"alert": "ErrorBudgetBurn", "labels": {"slo": "base-backup", "severity": "ticket"}}]
+        self.assertEqual(e.classify(alert("base-backup", severity="ticket", long="1d"), [], q, [], "api-factory-prod", set()), "quiet")
+
     def test_other_namespaces(self):
         self.assertEqual(self.c(alert("web", ns="storefront-dev")), "unexpected")
         self.assertIsNone(self.c(alert("web", ns="storefront-dev"), marked={"storefront-dev"}))   # the neighbour's
