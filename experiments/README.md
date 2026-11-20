@@ -14,7 +14,8 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 |---|---|---|
 | api-errors | api responses replaced by 503 (HTTPChaos) | web availability pages; web latency quiet |
 | api-slow | api packets +800ms (NetworkChaos) | web latency pages; web availability quiet — skipped: 800ms per packet made every call time out (superseded by api-slow-v2) |
-| api-slow-v2 | api packets +300ms (NetworkChaos) | web latency pages; web availability quiet |
+| api-slow-v2 | api packets +300ms (NetworkChaos) | web latency pages; web availability quiet — skipped: 0.30s per call, under the threshold (superseded by -v3) |
+| api-slow-v3 | api packets +600ms (NetworkChaos) | web latency pages; web availability quiet |
 | api-pod-failure | one of two api pods fails 10 min | nothing pages |
 | api-down | every api pod fails | web availability pages; api "SLI absent" ticket |
 | sample-app-down | every sample-app pod fails | sample-app availability pages |
