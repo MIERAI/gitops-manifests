@@ -16,11 +16,14 @@ fault:
     spec:
       action: partition
       mode: all
-      selector: { labelSelectors: { app: api-factory } }
+      # Injected on the Postgres side: the API connects through the postgres-rw Service, so its packets leave the pod
+      # addressed to the ClusterIP and a filter on the Postgres pod IPs never matches them (first run: injected,
+      # no effect). Postgres's packets go to the API pod IPs.
+      selector: { labelSelectors: { cnpg.io/cluster: postgres } }
       direction: both
       target:
         mode: all
-        selector: { labelSelectors: { cnpg.io/cluster: postgres } }
+        selector: { labelSelectors: { app: api-factory } }
       duration: 30m
 timeout: 12m
 expect:
