@@ -38,6 +38,7 @@ PY
 
 echo "• alert report"   # scripts/alert-report.py on synthetic fixtures (episodes, routing, classification)
 python3 -I scripts/test_alert_report.py
+python3 -I platform/alert-speaker/test_speaker.py
 
 echo "• admission policies"
 $KY test platform/policies/tests

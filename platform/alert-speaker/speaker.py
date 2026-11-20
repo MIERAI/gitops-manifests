@@ -1,7 +1,9 @@
 """Alertmanager webhook → speakd (the laptop reads alerts out loud).
 
-POST /         Alertmanager webhook payload (version 4). Each alert becomes one short sentence:
-               firing → "紧急告警" (severity page) / "告警" (ticket), resolved → "已恢复".
+POST /         Alertmanager webhook payload (version 4). One sentence per group and change: what started firing
+               ("紧急告警" severity page / "告警" ticket), what resolved ("已恢复"), naming the SLOs. Alertmanager resends
+               every firing alert of a group at each update (group_interval): those already spoken are not repeated,
+               except Alertmanager's own reminder (REPEAT_HOURS, its repeat_interval).
 GET  /healthz  ok
 
 Alert names are mapped to Chinese phrases (the Chinese voice cannot read CamelCase). During quiet hours
@@ -16,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SPEAKD_URL = os.environ.get("SPEAKD_URL", "http://10.42.0.1:8770/")
 QUIET = os.environ.get("QUIET_HOURS", "23-8")
+REPEAT = float(os.environ.get("REPEAT_HOURS", "12")) * 3600
 TZ = datetime.timezone(datetime.timedelta(hours=int(os.environ.get("TZ_OFFSET_HOURS", "9"))))
 
 PHRASES = {
@@ -28,8 +31,13 @@ PHRASES = {
     "DailyRestoreCheckFailed": "每日恢复验证失败",
     "OffsiteBackupStale": "手机上的异地备份三个小时没有成功",
 }
-APPS = {"api-factory": "API 工厂", "sample-app": "样例应用"}
-ENVS = {"dev": "开发环境", "prod": "生产环境"}
+APPS = {"api-factory": "API 工厂", "sample-app": "样例应用", "storefront": "商店"}
+ENVS = {"dev": "开发环境", "staging": "预发布环境", "prod": "生产环境"}
+# SLO names (app.yaml slos, label slo = <app>-<name>) read word by word; unknown words are read as they are
+WORDS = {"web": "网页", "api": "接口", "rpc": "接口", "hello": "hello", "order": "订单", "availability": "可用性",
+         "latency": "延迟", "severe": "严重", "probe": "外部探测", "freshness": "新鲜度", "completeness": "完整性",
+         "intake": "下单", "recovery": "恢复", "point": "点", "base": "基础", "backup": "备份", "restore": "恢复",
+         "check": "校验", "health": "健康"}
 
 
 def where(namespace):
@@ -39,15 +47,47 @@ def where(namespace):
     return namespace or ""
 
 
-def sentence(alert):
-    labels = alert.get("labels", {})
-    name = labels.get("alertname", "")
-    what = PHRASES.get(name, "收到告警")
-    if alert.get("status") == "resolved":
+def slo_name(labels):
+    slo = labels.get("slo", "")
+    app = labels.get("namespace", "").rpartition("-")[0]
+    if app and slo.startswith(app + "-"):
+        slo = slo[len(app) + 1:]
+    return "".join(WORDS.get(w, w) for w in slo.split("-") if w)
+
+
+def sentence(alerts, resolved):
+    """One sentence for alerts of one group (same alertname and namespace) that changed the same way."""
+    labels = alerts[0].get("labels", {})
+    what = PHRASES.get(labels.get("alertname", ""), "收到告警")
+    if resolved:
         head = "已恢复"
     else:
-        head = "紧急告警" if labels.get("severity") == "page" else "告警"
-    return f"{head}。{where(labels.get('namespace'))}。{what}。"
+        head = "紧急告警" if any(a.get("labels", {}).get("severity") == "page" for a in alerts) else "告警"
+    slos = []
+    for a in alerts:
+        n = slo_name(a.get("labels", {}))
+        if n and n not in slos:
+            slos.append(n)
+    return f"{head}。{where(labels.get('namespace'))}。{'、'.join(slos) + '，' if slos else ''}{what}。"
+
+
+spoken = {}  # fingerprint → (status, when spoken)
+
+
+def changes(alerts, now):
+    """The alerts whose status changed since we last spoke them (or whose reminder is due); remembers them."""
+    out = {"firing": [], "resolved": []}
+    for a in alerts:
+        fp, st = a.get("fingerprint") or json.dumps(a.get("labels", {}), sort_keys=True), a.get("status")
+        last = spoken.get(fp)
+        if st == "resolved":
+            if last and last[0] == "firing":   # never announce the end of what was never announced
+                out["resolved"].append(a)
+            spoken.pop(fp, None)
+        elif not last or last[0] != st or now - last[1] >= REPEAT:
+            out["firing"].append(a)
+            spoken[fp] = (st, now)
+    return out
 
 
 def quiet(now):
@@ -79,8 +119,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_response(400); self.end_headers(); return
         now = datetime.datetime.now(TZ)
-        for alert in payload.get("alerts", []):
-            text = sentence(alert)
+        c = changes(payload.get("alerts", []), now.timestamp())
+        for text in [sentence(c[k], k == "resolved") for k in ("firing", "resolved") if c[k]]:
             if quiet(now):
                 log(action="quiet", text=text)
                 continue
