@@ -1,4 +1,4 @@
-# Synthetic traffic (~2 RPC/s over a few APIs, with the API token): feeds the metrics and the alerts on a cluster without users.
+# Synthetic traffic (2 RPC/s, open loop, over a few APIs, with the API token): feeds the metrics and the alerts on a cluster without users.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,13 +21,19 @@ spec:
           args:
             - |
               call() { curl -s -o /dev/null --max-time 3 -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d "$2" "http://api-factory:8080/$1"; }
+              # open loop: one call every 0.5s, started whether or not the previous ones answered (users do not wait
+              # for each other). Closed loop (call, wait, call) sends less when the API slows down and hides it: a
+              # +200ms database took 15 min to page instead of ~10. --max-time 3 bounds the calls in flight.
+              set -- 'factory.jobs.v1.JobService/ListJobs {"pageSize":3}' \
+                'factory.sales.v1.SaleService/ListEffectivePriceChanges {"storeCode":1,"procDate":"2026-11-20"}' \
+                'factory.sales.v1.SaleService/ListCurrentPrices {"storeCode":1,"asOf":"2026-11-20"}' \
+                'factory.catalog.v1.CatalogService/GetProductLabel {"productCode":"100","labelCode":"A"}'
               while true; do
-                call factory.jobs.v1.JobService/ListJobs '{"pageSize":3}'
-                call factory.sales.v1.SaleService/ListEffectivePriceChanges '{"storeCode":1,"procDate":"2026-11-20"}'
-                call factory.sales.v1.SaleService/ListCurrentPrices '{"storeCode":1,"asOf":"2026-11-20"}'
-                call factory.catalog.v1.CatalogService/GetProductLabel '{"productCode":"100","labelCode":"A"}'
-                sleep 2
-              done
+                for c in "$@"; do
+                  call "${c%% *}" "${c#* }" &
+                  sleep 0.5
+                done
+              done   # no wait: it would pause the loop behind a slow call (ash reaps finished background jobs itself)
           resources:
             requests: { cpu: 5m, memory: 8Mi }
             limits: { memory: 32Mi }

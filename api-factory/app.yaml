@@ -34,6 +34,13 @@ slos:
       rpc-availability.
     objective: 99
     latency: { metric: rpc_request_duration_seconds, threshold: "0.1" }
+  - name: rpc-latency-severe
+    description: An RPC answered within 1s (a bucket edge). The second latency threshold, for slowness that is as bad as
+      an outage to a caller (clients give up at 3s): it burns fast and pages within minutes, while rpc-latency (100ms)
+      catches milder slowness slowly (wave of 2026-11-20: +200ms on the database paged rpc-latency after 15 min — by
+      design, ≈4% of its budget). Same blind spot as rpc-availability.
+    objective: 99.9
+    latency: { metric: rpc_request_duration_seconds, threshold: "1" }
   - name: health-probe
     description: /healthz (process up and the database answering a ping within 1s) answered 2xx through the Service,
       from outside the pods (blackbox prober, every 15s). Sees what the in-pod SLIs cannot (no ready pod, a broken
