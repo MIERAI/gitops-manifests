@@ -27,11 +27,11 @@ slos:
     description: The page served completely — not a 5xx, and not degraded (a page without the api's products is a
       200 counted result="degraded"). Blind to requests that never reach a web pod.
     objective: 99.5
-    availability: { metric: http_requests_total, matchers: 'app="web", route="GET /"', errors: 'result!="ok"' }
+    availability: { metric: http_requests_total, matchers: 'app="web", route="GET /{$}"', errors: 'result!="ok"' }
   - name: web-latency
     description: The page served within 500ms.
     objective: 99
-    latency: { metric: http_request_duration_seconds, matchers: 'app="web", route="GET /"', threshold: "0.5" }
+    latency: { metric: http_request_duration_seconds, matchers: 'app="web", route="GET /{$}"', threshold: "0.5" }
   - name: api-availability
     description: GET /products answered without a server error, as measured by api itself (a request dropped before
       it reaches api only shows in web's upstream_requests_total).
