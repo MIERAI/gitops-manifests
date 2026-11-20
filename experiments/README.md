@@ -21,6 +21,7 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | api-factory-one-pod-down | one of two API pods fails 10 min | nothing pages |
 | api-factory-db-slow | Postgres → API packets +200ms (NetworkChaos, on the Postgres side: the API uses a ClusterIP) | rpc-latency pages; rpc-availability and health-probe quiet |
 | api-factory-db-partition | API ↮ Postgres partition (NetworkChaos) | health-probe pages (predicted: rpc-availability does not, readiness hides the failures) |
+| api-factory-db-partition-probes-v2 | the same, probes without the database (supersedes -probes) | rpc-latency-severe and health-probe page; rpc-availability / rpc-latency may page |
 | backup-store-unreachable | api-factory dev: Postgres pod → object store partitioned (NetworkChaos), with writes | recovery-point SLO pages; `PostgresWalArchivingFailing` ticket; base-backup SLO quiet |
 | backup-normal-writes | none: dev's database writing (WAL archived every 5 min) | no backup page or ticket (the negative test) |
 | storefront-worker-one-down | one of two workers fails 10 min | nothing pages |
@@ -53,7 +54,7 @@ Format: `hypothesis`, `namespace`, `effect` (a PromQL query that returns data on
 objects with `spec.duration`, or a fault-switch ConfigMap; created in the namespace and always deleted),
 `load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
 fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
-`within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
+`within`), `expect.quiet`, `expect.may_fire` (allowed, not required: like `fire` without `within`; logged "~ also fired"), `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
 pages notify nobody), `skip` (why the scheduled regression cannot run it) and `clusters` (only
 on these, e.g. `[kind]`; default: every lab cluster).
 

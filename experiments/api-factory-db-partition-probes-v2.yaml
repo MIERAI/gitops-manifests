@@ -1,0 +1,32 @@
+hypothesis: >-
+  Same fault and the same required pages as api-factory-db-partition-probes (Postgres unreachable from the API; the
+  probes no longer ping the database): rpc-latency-severe within 5 min, the health probe within 10. Written after
+  that experiment's run on 2026-11-20, which judged rpc-availability and rpc-latency "unexpected": in a total outage
+  every request SLO burns, so those pages are correct, not noise — and Alertmanager groups per service, so they are
+  still one announcement. They are allowed here (may_fire), not required: whether rpc-availability burns depends on
+  whether the caller or the server gives up first at 3s (canceled is not bad, deadline_exceeded is).
+namespace: api-factory-prod
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: NetworkChaos
+    metadata: { name: api-factory-db-partition }
+    spec:
+      action: partition
+      mode: all
+      selector: { labelSelectors: { cnpg.io/cluster: postgres } }   # Postgres side: see api-factory-db-partition
+      direction: both
+      target:
+        mode: all
+        selector: { labelSelectors: { app: api-factory } }
+      duration: 30m
+effect: { query: 'max(probe_success{namespace="api-factory-prod", slo_probe="api-factory-health-probe"}) == 0', within: 3m }   # the database ping of /healthz fails
+timeout: 12m
+hold: 8m
+expect:
+  fire:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-latency-severe, severity: page, long: 1h }, within: 5m }
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-health-probe, severity: page, long: 1h }, within: 10m }
+  may_fire:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-availability, severity: page, long: 1h } }
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-latency, severity: page, long: 1h } }
+recover: 15m

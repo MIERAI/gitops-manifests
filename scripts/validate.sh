@@ -35,11 +35,17 @@ for f in sorted(glob.glob("experiments/*.yaml")):
     missing = [k for k in ("hypothesis", "namespace", "expect") if k not in x]
     if missing:
         sys.exit(f"{f}: missing {missing}")
+    for w in x["expect"].get("may_fire") or []:   # allowed, not required: like fire, without `within`
+        if "alert" not in w or "within" in w:
+            sys.exit(f"{f}: expect.may_fire entries have alert (and labels), no within: {w}")
     problems = check_deadlines(x)
     if problems:
         sys.exit(f"{f}: " + "; ".join(problems))
     print(f"  {f}: ok")
 PY
+
+echo "• experiment runner"   # scripts/experiment.py: judgement (fire / quiet / may_fire), fault deadlines
+python3 -I scripts/test_experiment.py
 
 echo "• alert report"   # scripts/alert-report.py on synthetic fixtures (episodes, routing, classification)
 python3 -I scripts/test_alert_report.py
