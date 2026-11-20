@@ -15,7 +15,11 @@ spec:
       containers:
         - name: worker
           image: "{{ .Values.image.repository }}:{{ required "image.tag (values-<env>.yaml)" .Values.image.tag }}"
-          ports: [{ containerPort: 8080, name: http }]
+          ports: [{ containerPort: 8080, name: http }, { containerPort: 9090, name: metrics }]   # metrics: PodMonitor storefront
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ .Values.database.secret }}, key: uri } }
+            - { name: WORK_TIME, value: {{ .Values.workTime | quote }} }
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }
           resources: {{- toYaml .Values.resources | nindent 12 }}
