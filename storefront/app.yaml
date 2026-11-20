@@ -46,3 +46,25 @@ slos:
     description: GET /products answered within 100ms.
     objective: 99
     latency: { metric: http_request_duration_seconds, matchers: 'app="api", route="GET /products"', threshold: "0.1" }
+  # The order pipeline (asynchronous shape: web takes orders, the worker processes them). Its SLIs are measured by
+  # web asking the database every 10s, not by the worker: a worker's metrics vanish with the last worker.
+  - name: order-intake
+    description: POST /orders answered without a server error (the order stored, or a 4xx for a bad one). Blind to
+      requests that never reach a web pod.
+    objective: 99.5
+    availability: { metric: http_requests_total, matchers: 'app="web", route="POST /orders"', errors: 'result!="ok"' }
+  - name: order-freshness
+    description: Every order older than 60s has been processed (share of time). The watermark is the creation time of
+      the oldest unprocessed order (now when there is none), measured by web asking the database every 10s (up to
+      ~30s of measurement lag counts inside the 60s). One stuck order is enough to make the pipeline stale. Absent while
+      web cannot ask the database (unknown is not fresh, but not stale either; order-intake pages then).
+    objective: 99.5
+    age: { metric: orders_processed_through_timestamp_seconds, matchers: 'app="web"', max: 60s }
+  - name: order-completeness
+    description: Orders processed within 5 minutes of their creation, among the orders created. An order still
+      pending after 5 minutes is counted lost once (orders_overdue_total), even if processed later. Blind while web
+      cannot ask the database (counted when it can again).
+    objective: 99.9
+    ratio:
+      errors: { metric: orders_overdue_total, matchers: 'app="web"' }
+      total: { metric: orders_created_total, matchers: 'app="web"' }

@@ -41,9 +41,10 @@ for (const [env, scale] of ENVS) {
 
 export const options = { scenarios, discardResponseBodies: true, summaryTrendStats: ['p(95)'] };
 
-// What users do, with weights; sample-app requests only where it runs.
+// What users do, with weights; sample-app requests only where it runs. Orders: ~6.5% of requests (dev peak ≈ 6/min).
 const MIX = [
   { w: 65, route: 'storefront /', url: (e) => `http://web.storefront-${e}.svc:8080/` },
+  { w: 7, route: 'storefront order', order: true, url: (e) => `http://web.storefront-${e}.svc:8080/orders` },
   { w: 30, route: 'sample-app /hello', hello: true,
     url: (e) => `http://sample-app.sample-app-${e}.svc:8080/hello?name=user${Math.floor(Math.random() * 1000)}` },
   { w: 3, route: 'storefront 404', url: (e) => `http://web.storefront-${e}.svc:8080/products/old-link` },   // stale links
@@ -55,5 +56,11 @@ export function user() {
   const mix = MIX.filter((m) => !m.hello || HELLO_ENVS.includes(env));
   let r = Math.random() * mix.reduce((t, m) => t + m.w, 0);
   const m = mix.find((x) => (r -= x.w) < 0) || mix[0];
+  if (m.order) {   // a small share of users order; 1 in 20 types a bad amount (a 4xx: not counted against an SLO)
+    const amount = Math.random() < 0.05 ? 0 : 100 * (1 + Math.floor(Math.random() * 50));
+    http.post(m.url(env), JSON.stringify({ amount }),
+      { headers: { 'Content-Type': 'application/json' }, timeout: '10s', tags: { route: m.route } });
+    return;
+  }
   http.get(m.url(env), { timeout: '10s', tags: { route: m.route } });
 }
