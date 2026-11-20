@@ -10,6 +10,9 @@ experiment of anyone running (the lock), its cooldown over, no page firing there
 experiment expects (a burn-rate alert of the previous fault would be counted for or against the next one). After each fault the namespace
 stays marked for --gap (default 45 min, longer than experiment.py's 30: the 1h windows still hold the fault).
 A namespace that is not free within --wait is skipped this time (a result, not a failure: said in the summary).
+After the lab slept (Prometheus has a gap in the last hour: the 1h burn-rate windows would hold it) nothing starts
+until the hour is clean; a run that the gap or a clock jump reaches anyway is INVALID (experiment.py), recorded as
+such and not counted as pass or fail.
 
 Not run, and said so: experiments with `skip: <reason>` (cannot run on our lab, e.g. HTTPChaos on kind), with
 `clusters: [...]` not listing --cluster, or whose namespace does not exist on this cluster (demo: no private apps).
@@ -84,7 +87,7 @@ def busy(ns, expect_fire):
                    or any(experiment.matches(x, w) for w in expect_fire)})
     if loud:
         return "still firing: " + ", ".join(loud)
-    return None
+    return experiment.prom_gap_reason(now - experiment.LOOKBACK_S, now)
 
 
 class Regression:
@@ -147,15 +150,12 @@ class Regression:
                     if r.started is None:
                         self.set(name, ns, "skipped", f"not started: {r.not_started}")
                         break
-                    if experiment.STOP.is_set():   # cut short: not a result (the fault is removed all the same)
-                        self.set(name, ns, "skipped", "regression stopped (SIGTERM) during the experiment")
-                        break
                     if self.a.record:
                         try:
                             r.record(self.a.record)
                         except RuntimeError as e:
                             self.broken.append(f"{name}: could not record: {e}")
-                    self.set(name, ns, "pass" if r.ok else "fail")
+                    self.set(name, ns, r.status, r.invalid)
                     break
             except Exception as e:  # a crash of the scheduler around one experiment: that experiment is broken, go on
                 self.broken.append(f"{name}: {e}")
@@ -207,6 +207,7 @@ def main():
     if a.dry_run:
         return
     signal.signal(signal.SIGTERM, lambda *_: experiment.STOP.set())
+    experiment.keep_awake()
     reg = Regression(a)
     reg.run(queues, skipped)
     counts = {}

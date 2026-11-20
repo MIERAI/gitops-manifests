@@ -17,7 +17,9 @@ EXP = ("experiment", "namespace")
 ALERT = EXP + ("kind", "alert", "slo", "severity", "long")
 
 HELP = {
-    "slo_experiment_last_success": "1 if the last run of the experiment passed (every expectation met, nothing else paged)",
+    "slo_experiment_last_success": "1 if the last valid run of the experiment passed (every expectation met, nothing else paged)",
+    "slo_experiment_last_status": "the status of the last run, valid or not: pass / fail / invalid (time did not flow: sleep, Prometheus gap)",
+    "slo_experiment_last_invalid_timestamp_seconds": "when the last invalid run ended (its result counts neither as pass nor fail)",
     "slo_experiment_last_run_timestamp_seconds": "when the last run of the experiment ended",
     "slo_experiment_last_success_timestamp_seconds": "when the experiment last passed (as far as the recorded runs go)",
     "slo_experiment_last_duration_seconds": "how long the last run took (fault, hold, recovery)",
@@ -56,10 +58,15 @@ def metrics():
                 add("slo_experiment_regression_status", {"experiment": name, "namespace": s["namespace"], "status": s["status"],
                                                           "reason": s.get("reason", "")}, 1)
                 counts[s["status"]] = counts.get(s["status"], 0) + 1
-            for status in ("pass", "fail", "error", "skipped", "pending", "running"):
+            for status in ("pass", "fail", "invalid", "error", "skipped", "pending", "running"):
                 add("slo_experiment_regression_experiments", {"status": status}, counts.get(status, 0))
             continue
         e = {"experiment": d["experiment"], "namespace": d["namespace"]}
+        status = d.get("last_status") or ("pass" if d.get("success") else "fail")
+        add("slo_experiment_last_status", {**e, "status": status}, 1)
+        add("slo_experiment_last_invalid_timestamp_seconds", e, (d.get("last_invalid") or {}).get("finished"))
+        if "success" not in d:   # only invalid runs so far: nothing verified, nothing broken
+            continue
         add("slo_experiment_last_success", e, 1 if d["success"] else 0)
         add("slo_experiment_last_run_timestamp_seconds", e, d.get("finished"))
         add("slo_experiment_last_success_timestamp_seconds", e, d.get("last_success") or (d.get("finished") if d["success"] else None))
