@@ -1,0 +1,8 @@
+# Realistic traffic for every environment of storefront and sample-app (k6, traffic.js): a compressed day with quiet
+# nights and peaks, client errors, bursts. Feeds the SLOs; the fault experiments (experiments/) run on top of it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: traffic
+resources: [k6.yaml]
+configMapGenerator:
+  - { name: traffic-script, files: [traffic.js] }

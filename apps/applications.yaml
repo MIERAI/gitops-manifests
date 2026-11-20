@@ -5,7 +5,8 @@
 #   slos (app.yaml)             → one more component <name>-slo: chart platform/slo, values {app, env, slos}
 #                                 (Pyrra ServiceLevelObjectives scoped to the namespace; gitops-platform-blueprint docs/slo.md)
 # The namespace gets the labels the platform keys on: admission policies (enforced), the GHCR pull secret (cloned by
-# platform/policies/ghcr-pull.yaml), image signatures (when signedImages). ignoreDifferences (app.yaml) is passed
+# platform/policies/ghcr-pull.yaml), image signatures (when signedImages); the annotation lets the fault
+# experiments target it (Chaos Mesh only injects into annotated namespaces). ignoreDifferences (app.yaml) is passed
 # through, with RespectIgnoreDifferences. scripts/render.py renders the same way for validate.sh / diff.sh: keep both
 # in step.
 apiVersion: argoproj.io/v1alpha1
@@ -82,6 +83,7 @@ spec:
         syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
         {{- end }}
         managedNamespaceMetadata:
+          annotations: { chaos-mesh.org/inject: enabled }   # fault experiments may target it (platform-chaos-mesh)
           labels:
             gitops-platform/policies: enforced
             gitops-platform/ghcr-pull: "true"

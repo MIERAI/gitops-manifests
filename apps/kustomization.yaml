@@ -7,9 +7,11 @@ resources:
   - applications.yaml          # every <app>/app.yaml → its Applications (ApplicationSet)
   - platform-argo-rollouts.yaml
   - platform-cert-manager.yaml
+  - platform-chaos-mesh.yaml     # fault injection for the SLO experiments (experiments/)
   - platform-cnpg.yaml
   - platform-kyverno.yaml
   - platform-monitoring.yaml
   - platform-object-storage.yaml
   - platform-policies.yaml
   - platform-pyrra.yaml          # SLOs (app.yaml slos → platform/slo chart → Pyrra)
+  - platform-traffic.yaml        # realistic traffic (k6): a compressed day, client errors, bursts

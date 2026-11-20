@@ -1,0 +1,20 @@
+# Realistic traffic (k6) for the SLOs and the fault experiments: storefront and sample-app, every environment.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-traffic
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/traffic
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traffic
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

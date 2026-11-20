@@ -13,6 +13,9 @@ resources:
   - platform-offsite-backup.yaml
   - platform-delivery-board.yaml
 patches:
+  - target: { kind: Application, name: platform-chaos-mesh }
+    patch: |-
+      - { op: replace, path: /spec/source/helm/valuesObject/chaosDaemon/socketPath, value: /run/k3s/containerd/containerd.sock }
   - target: { kind: Application, name: platform-object-storage }
     patch: |-
       - { op: replace, path: /spec/source/path, value: platform/object-storage-external }
