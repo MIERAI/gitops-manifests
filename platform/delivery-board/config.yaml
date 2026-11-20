@@ -51,3 +51,10 @@ discover:
     push: { label: 提交 }
     jobs: { test: test, "image / build": 镜像, "promote / promote": 推送 dev }
     promotion: { workflow: promote.yml, soakInput: soak }
+
+# Error budget policy (blueprint docs/slo.md §6) for promotions into prod: the lowest budget left among the app's SLOs
+# (Pyrra's rules in this Prometheus). > 25% pass; 0–25% needs a reason; exhausted, fast burn or unknown: change fix /
+# exception with a reason. promote.yml takes the inputs change and reason. MIERAI/delivery-board docs/error-budget.md
+errorBudget:
+  prometheus: http://kps-prometheus.monitoring.svc:9090
+  environments: [prod]
