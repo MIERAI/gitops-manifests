@@ -144,8 +144,7 @@ class Run:
                 time.sleep(POLL)
         finally:
             if objs:
-                kubectl("delete", "--ignore-not-found", "-f", "-", stdin=manifest)
-                self.say(f"fault removed after {(time.time() - t0) / 60:.1f} min")
+                self.remove(objs, manifest, t0)
         for i, w in enumerate(fire):
             if i not in seen:
                 self.fail(f"did not fire within {w.get('within', '10m')}: {w['alert']} {w.get('labels', {})}")
@@ -163,6 +162,21 @@ class Run:
             for i in left:
                 self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
         self.say("PASS" if self.ok else "FAIL")
+
+    def remove(self, objs, manifest, t0, limit=60):
+        """Delete the fault without blocking on Chaos Mesh's finalizer (it hangs when the fault never got in, or the
+        daemon is unreachable), then say plainly if it is still there."""
+        kubectl("delete", "--ignore-not-found", "--wait=false", "-f", "-", stdin=manifest)
+        t = time.time()
+        while time.time() - t < limit:
+            left = [o for o in objs if subprocess.run(KUBE + ["get", "-n", self.ns, o["kind"].lower(), o["metadata"]["name"]],
+                                                      capture_output=True).returncode == 0]
+            if not left:
+                self.say(f"fault removed after {(time.time() - t0) / 60:.1f} min")
+                return
+            time.sleep(5)
+        self.fail("fault still present after delete (finalizer): " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in left)
+                  + " — check `kubectl -n " + self.ns + " get podnetworkchaos,podhttpchaos` and the chaos-daemon")
 
     def wait_injected(self, objs, limit=90):
         """Chaos Mesh accepts an object and may still inject nothing (a denied pause image, a daemon with an old
