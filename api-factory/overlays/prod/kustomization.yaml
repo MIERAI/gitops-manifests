@@ -43,6 +43,6 @@ patches:
         value: 30081
 images:
   - name: ghcr.io/mierai/api-factory
-    newTag: "0d68c31"
+    newTag: "763f65a"
   - name: ghcr.io/mierai/api-factory-schema
-    newTag: "0d68c31"
+    newTag: "763f65a"
