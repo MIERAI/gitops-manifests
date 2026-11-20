@@ -1,0 +1,117 @@
+# Delivery SLOs (blueprint docs/slo.md §1, shape "Delivery"): DORA metrics of every pipeline, measured by the board
+# from git (definitions and blind spots: MIERAI/delivery-board docs/dora.md).
+#
+# The SLIs are the board's delivery_window_* gauges: 28 days recomputed from the manifests history at every scrape,
+# because Prometheus keeps 3 days and the board keeps no state. Not Pyrra: its objectives need counters over the
+# window, and with a few deployments a week a burn rate means nothing.
+#
+# Tickets, never pages (§4): no user is affected now by a slow or failing delivery process, nothing must be done
+# tonight, and the signal moves over days. A ratio needs a minimum of evidence: the budget is computed over at least
+# 10 deployments, so one bad change among a handful does not open a ticket (each failure is reviewed on its own).
+#
+#   lead time   90% of prod deployments within 1 day of the merge (le="86400", a bucket edge)
+#   failures    at most 15% of prod deployments rolled back or reverted
+#   frequency, time to restore: dashboard only
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: delivery-board, namespace: delivery-board }
+spec:
+  selector: { matchLabels: { app: delivery-board } }
+  podMetricsEndpoints: [{ port: http, path: /metrics, interval: 60s }]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: { name: delivery-slo, namespace: delivery-board }
+spec:
+  groups:
+    - name: delivery.slo
+      rules:
+        # max by: one series per pipeline and environment (a rolling update briefly scrapes two pods)
+        - record: delivery:lead_time_within_1d:ratio_28d
+          expr: |
+            max by (pipeline, env) (delivery_window_lead_time_seconds_bucket{le="86400"})
+              / max by (pipeline, env) (delivery_window_lead_time_seconds_count > 0)
+        - record: delivery:change_failure:ratio_28d
+          expr: |
+            max by (pipeline, env) (delivery_window_change_failures)
+              / max by (pipeline, env) (delivery_window_deployments > 0)
+        - alert: DeliveryLeadTimeSLO
+          # slow deployments (> 1 day) above 10% of max(deployments, 10)
+          expr: |
+            (max by (pipeline, env) (delivery_window_lead_time_seconds_count{env="prod"})
+              - max by (pipeline, env) (delivery_window_lead_time_seconds_bucket{env="prod", le="86400"}))
+            > 0.10 * clamp_min(max by (pipeline, env) (delivery_window_lead_time_seconds_count{env="prod"}), 10)
+          for: 1h
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.pipeline }}: more than 10% of prod deployments (28d) took over a day from merge to prod"
+            runbook: https://github.com/MIERAI/delivery-board/blob/main/docs/dora.md#slos
+        - alert: DeliveryChangeFailureSLO
+          # failed deployments above 15% of max(deployments, 10)
+          expr: |
+            max by (pipeline, env) (delivery_window_change_failures{env="prod"})
+            > 0.15 * clamp_min(max by (pipeline, env) (delivery_window_deployments{env="prod"}), 10)
+          for: 1h
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.pipeline }}: more than 15% of prod deployments (28d) were rolled back or reverted"
+            runbook: https://github.com/MIERAI/delivery-board/blob/main/docs/dora.md#slos
+        - alert: DeliverySLIAbsent
+          # no data is not zero failures (§2): the board is down, not scraped, or the metric was renamed
+          expr: absent(delivery_window_deployments{env="prod"})
+          for: 30m
+          labels: { severity: ticket }
+          annotations:
+            summary: "delivery SLIs are missing (delivery board down or not scraped)"
+            runbook: https://github.com/MIERAI/delivery-board/blob/main/docs/dora.md#metrics
+        - alert: DeliverySLIStale
+          # the board keeps the last good data when GitHub fails (rate limit, token): the SLIs stop moving
+          expr: max by (pipeline) (delivery_board_last_update_age_seconds) > 1800
+          for: 15m
+          labels: { severity: ticket }
+          annotations:
+            summary: "{{ $labels.pipeline }}: the delivery board has not refreshed for 30 minutes (GitHub errors or rate limit?)"
+            runbook: https://github.com/MIERAI/delivery-board/blob/main/ROADMAP.md
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-dashboard
+  namespace: delivery-board
+  labels: { grafana_dashboard: "1" }
+data:
+  delivery.json: |
+    {
+      "title": "Delivery (DORA)", "uid": "delivery-dora", "schemaVersion": 39, "refresh": "5m", "time": { "from": "now-3d", "to": "now" },
+      "description": "From the delivery board (git history). Window panels: last 28 days, recomputed by the board. Definitions: MIERAI/delivery-board docs/dora.md",
+      "templating": { "list": [ { "name": "env", "type": "query", "datasource": "Prometheus",
+        "query": "label_values(delivery_window_deployments, env)", "current": { "text": "prod", "value": "prod" }, "refresh": 2 } ] },
+      "panels": [
+        { "type": "bargauge", "title": "Deployments per day (28d)", "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "decimals": 2, "unit": "none" } },
+          "targets": [ { "expr": "max by (pipeline) (delivery_window_deployments{env=\"$env\"}) / 28", "legendFormat": "{{pipeline}}" } ] },
+        { "type": "bargauge", "title": "Lead time within 1 day (prod SLO: 90%)", "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+            "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 0.9 } ] } } },
+          "targets": [ { "expr": "delivery:lead_time_within_1d:ratio_28d{env=\"$env\"}", "legendFormat": "{{pipeline}}" } ] },
+        { "type": "bargauge", "title": "Change failure rate (prod SLO: ≤ 15%)", "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+            "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.15 } ] } } },
+          "targets": [ { "expr": "delivery:change_failure:ratio_28d{env=\"$env\"}", "legendFormat": "{{pipeline}}" } ] },
+        { "type": "table", "title": "28 days by pipeline", "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "transformations": [ { "id": "merge" }, { "id": "organize", "options": { "excludeByName": { "Time": true } } } ],
+          "targets": [
+            { "expr": "max by (pipeline) (delivery_window_deployments{env=\"$env\"})", "format": "table", "instant": true, "refId": "deployments" },
+            { "expr": "max by (pipeline) (delivery_window_change_failures{env=\"$env\"})", "format": "table", "instant": true, "refId": "failures" },
+            { "expr": "histogram_quantile(0.5, max by (pipeline, le) (delivery_window_lead_time_seconds_bucket{env=\"$env\"})) / 3600", "format": "table", "instant": true, "refId": "lead p50 (h)" },
+            { "expr": "histogram_quantile(0.9, max by (pipeline, le) (delivery_window_lead_time_seconds_bucket{env=\"$env\"})) / 3600", "format": "table", "instant": true, "refId": "lead p90 (h)" },
+            { "expr": "max by (pipeline) (delivery_window_restore_time_seconds_sum{env=\"$env\"}) / max by (pipeline) (delivery_window_restore_time_seconds_count{env=\"$env\"} > 0) / 60", "format": "table", "instant": true, "refId": "mean restore (min)" },
+            { "expr": "max by (pipeline) (delivery_window_covered_seconds{env=\"$env\"}) / 86400", "format": "table", "instant": true, "refId": "history covers (d)" }
+          ] },
+        { "type": "timeseries", "title": "Deployments and failures (counters, per hour)", "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+          "targets": [
+            { "expr": "sum by (pipeline) (increase(delivery_deployments_total{env=\"$env\"}[1h]))", "legendFormat": "{{pipeline}} deployments" },
+            { "expr": "sum by (pipeline) (increase(delivery_change_failures_total{env=\"$env\"}[1h]))", "legendFormat": "{{pipeline}} failures" }
+          ] }
+      ]
+    }
