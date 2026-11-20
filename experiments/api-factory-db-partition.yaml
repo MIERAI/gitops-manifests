@@ -9,6 +9,7 @@ hypothesis: >-
   vanish and SLOMetricAbsent (ticket) follows after ~12 min; after the fault, restart back-off delays recovery by up
   to a few minutes.
 namespace: api-factory-prod
+skip: superseded by api-factory-db-partition-probes (the probes no longer ping the database since /livez, /readyz)
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1
     kind: NetworkChaos
