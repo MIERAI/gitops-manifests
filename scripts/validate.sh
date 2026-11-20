@@ -51,6 +51,9 @@ echo "• alert report"   # scripts/alert-report.py on synthetic fixtures (episo
 python3 -I scripts/test_alert_report.py
 python3 -I platform/alert-speaker/test_speaker.py
 
+echo "• scorecard"   # scripts/scorecard.py on synthetic fixtures (SLOs, runbook anchors, experiments, budgets, gaps)
+python3 -I scripts/test_scorecard.py
+
 echo "• admission policies"
 $KY test platform/policies/tests
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

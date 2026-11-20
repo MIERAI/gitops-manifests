@@ -107,6 +107,19 @@ own state (silences, repeat_interval, deduplication across a Prometheus restart)
 is namespace-wide, so a coincidence (a routine rollout) counts — the reasons are printed for a human to disagree;
 Prometheus keeps 30 days, so the report cannot look further back. Tests: `scripts/test_alert_report.py` (CI: validate).
 
+## Reliability scorecard
+
+One page per review (blueprint `docs/slo.md` §8): per application, per prod SLO (and the platform's own SLOs) the
+objective, the error budget left over 28d (Pyrra on the laptop), the runbook anchor and whether `docs/runbook.md` has
+it, the non-skipped experiments whose `expect.fire` names the SLO with their last result (`results/*.md` or kind's
+`slo_experiment_*`), and pages / tickets in 7d / 28d from `ALERTS`; then the gaps: untested or unverified pages (§5),
+a failing or stale (`--stale`, 7d) experiment, a missing runbook (§4), budget < 25% or exhausted (§6), more than ~2
+pages a week. Read-only; reports go to `reports/scorecard/<date>.md`. Tests: `scripts/test_scorecard.py` (CI: validate).
+
+```sh
+uv run -q --with pyyaml python3 scripts/scorecard.py -o reports/scorecard/$(date +%F).md   # laptop + kind (optional)
+```
+
 ## Scheduled regression
 
 On the lab clusters (kind, the demo cluster; never the laptop) every experiment runs daily, like unit tests for
