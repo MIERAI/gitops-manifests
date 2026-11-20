@@ -20,7 +20,10 @@ spec:
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ .Values.database.secret }}, key: uri } }
             - { name: WORK_TIME, value: {{ .Values.workTime | quote }} }
-          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
-          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }
+          # Probe timeouts tolerate slowness (experiment api-slow-v3): with the default 1s, a 600ms network delay killed every
+          # api pod (liveness) and took it out of the Service (readiness) — slowness became an outage. Liveness only detects a
+          # stuck process: 5s x 6 (2 min) before a restart.
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5, timeoutSeconds: 3 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 6 }
           resources: {{- toYaml .Values.resources | nindent 12 }}
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }

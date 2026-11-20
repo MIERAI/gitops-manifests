@@ -48,10 +48,12 @@ spec:
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             periodSeconds: 5
+            timeoutSeconds: 3   # tolerate slowness: with 1s a slow network turned into restarts (storefront, api-slow-v3)
           livenessProbe:
             httpGet: { path: /livez, port: http }
             periodSeconds: 20
-            failureThreshold: 3
+            timeoutSeconds: 5
+            failureThreshold: 6   # 2 min of a stuck process before a restart
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 256Mi }
