@@ -1,6 +1,8 @@
 # Fault injection for the SLO experiments (experiments/): Chaos Mesh, pinned chart. Only namespaces annotated
 # chaos-mesh.org/inject=enabled can be targeted (enableFilterNamespace): the application namespaces (set by
 # apps/applications.yaml), never the platform's. Faults only on our own clusters.
+# After a certificate change restart chaos-daemon by hand (rollme is ignored, so nothing restarts it): a daemon with
+# the old certificate fails every injection with "certificate signed by unknown authority".
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -21,6 +23,9 @@ spec:
         controllerManager:
           chaosdSecurityMode: false
           replicaCount: 1
+          # pod-failure swaps the containers' image for this one: the default (pause:latest) is denied by our
+          # admission policy disallow-latest-tag in the application namespaces
+          podChaos: { podFailure: { pauseImage: registry.k8s.io/pause:3.10 } }
           enableFilterNamespace: true
           resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi } }
         chaosDaemon:

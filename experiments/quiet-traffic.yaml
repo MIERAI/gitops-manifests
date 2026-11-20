@@ -1,5 +1,6 @@
-hypothesis: Normal traffic — a compressed day with quiet nights, peaks, bursts and 5% client errors — pages nobody.
-  The negative test: every page under normal conditions is noise (gitops-platform-blueprint docs/slo.md §4).
+hypothesis: >-
+  Normal traffic — a compressed day with quiet nights, peaks, bursts and 5% client errors — pages nobody. The negative
+  test: every page under normal conditions is noise (gitops-platform-blueprint docs/slo.md §4).
 namespace: storefront-prod
 fault: []
 timeout: 2h

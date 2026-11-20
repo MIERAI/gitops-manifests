@@ -1,6 +1,7 @@
-hypothesis: Every api response to GET /products is replaced by a 503 on its way out (a broken proxy / sidecar between
-  web and api). Users get pages without products; web's availability SLO must page. api's own SLO does not see it
-  (api answered 200) — the page is on web, and web's upstream_requests_total{code="503"} names api as the cause.
+hypothesis: >-
+  Every api response to GET /products is replaced by a 503 on its way out (a broken proxy / sidecar between web and
+  api). Users get pages without products; web's availability SLO must page. api's own SLO does not see it (api
+  answered 200) — the page is on web, and web's upstream_requests_total{code="503"} names api as the cause.
 namespace: storefront-staging
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1

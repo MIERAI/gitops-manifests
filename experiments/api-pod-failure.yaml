@@ -1,5 +1,6 @@
-hypothesis: One of the two api pods fails for 10 minutes (crash loop, a lost node). The other one serves; Kubernetes
-  takes the failed pod out of the Service. Nobody should be paged — a page here would be noise.
+hypothesis: >-
+  One of the two api pods fails for 10 minutes (crash loop, a lost node). The other one serves; Kubernetes takes the
+  failed pod out of the Service. Nobody should be paged — a page here would be noise.
 namespace: storefront-dev
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1

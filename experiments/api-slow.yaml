@@ -1,5 +1,6 @@
-hypothesis: api's packets are delayed by 800ms (a slow network path or an overloaded node). Pages still render
-  (web waits up to 2s) but slowly; web's latency SLO (99% under 500ms) must page, its availability SLO must not.
+hypothesis: >-
+  api's packets are delayed by 800ms (a slow network path or an overloaded node). Pages still render (web waits up to
+  2s) but slowly; web's latency SLO (99% under 500ms) must page, its availability SLO must not.
 namespace: storefront-prod
 fault:
   - apiVersion: chaos-mesh.org/v1alpha1
