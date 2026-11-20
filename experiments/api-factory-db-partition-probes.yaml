@@ -1,0 +1,30 @@
+hypothesis: >-
+  Same fault as api-factory-db-partition (Postgres unreachable from the API), after the probes stopped pinging the
+  database (/livez, /readyz). Prediction, written before the run: the pods stay ready and are not restarted, so every
+  RPC still reaches a pod and waits for a database connection until the 3s deadline. rpc-latency-severe (99.9% under
+  1s; 14 × 0.1% = 1.4% of the hour ≈ 1 min, plus for 2m) pages within ~4 min — before the health probe (~6.5 min).
+  Not predicted: whether rpc-availability pages too — a request that times out is counted canceled (not bad) or
+  deadline_exceeded (bad) depending on whether the caller or the server gives up first (both at 3s).
+  Checked by hand afterwards: no container restarts in api-factory-prod during the fault.
+namespace: api-factory-prod
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: NetworkChaos
+    metadata: { name: api-factory-db-partition }
+    spec:
+      action: partition
+      mode: all
+      selector: { labelSelectors: { cnpg.io/cluster: postgres } }   # Postgres side: see api-factory-db-partition
+      direction: both
+      target:
+        mode: all
+        selector: { labelSelectors: { app: api-factory } }
+      duration: 30m
+effect: { query: 'max(probe_success{namespace="api-factory-prod", slo_probe="api-factory-health-probe"}) == 0', within: 3m }   # the database ping of /healthz fails
+timeout: 12m
+hold: 8m
+expect:
+  fire:
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-rpc-latency-severe, severity: page, long: 1h }, within: 5m }
+    - { alert: ErrorBudgetBurn, labels: { namespace: api-factory-prod, slo: api-factory-health-probe, severity: page, long: 1h }, within: 10m }
+recover: 15m

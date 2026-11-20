@@ -42,11 +42,14 @@ spec:
             - { name: METRICS_PORT, value: "9091" }   # metrics without auth, not exposed by the Service
           envFrom:
             - secretRef: { name: api-factory }   # DATABASE_URL / FACTORY_SHARDS / PAGE_TOKEN_KEY / AUTH_TOKEN_SHA256
+          # Neither probe touches the database (api-factory /livez, /readyz): with the database down, restarting the API
+          # or taking every pod out of the Service fixes nothing — users got connection refused and the in-pod SLIs
+          # counted nothing (experiment api-factory-db-partition). /healthz (database ping) is for the external probe.
           readinessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /readyz, port: http }
             periodSeconds: 5
           livenessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /livez, port: http }
             periodSeconds: 20
             failureThreshold: 3
           resources:
