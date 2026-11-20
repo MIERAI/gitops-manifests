@@ -36,6 +36,9 @@ for f in sorted(glob.glob("experiments/*.yaml")):
     print(f"  {f}: ok")
 PY
 
+echo "• alert report"   # scripts/alert-report.py on synthetic fixtures (episodes, routing, classification)
+python3 -I scripts/test_alert_report.py
+
 echo "• admission policies"
 $KY test platform/policies/tests
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
