@@ -80,19 +80,16 @@ spec:
   groups:
     - name: api-factory.postgres
       rules:
+        # The symptom (WAL not reaching the object store) is the recovery-point SLO in app.yaml, which pages; this is
+        # its cause, a ticket: it says why, often before the SLO burns. "No WAL archived for 15 minutes" was removed:
+        # an idle database archives nothing (archive_timeout only switches a segment with new WAL), so it paged for
+        # hours with nothing at risk.
         - alert: PostgresWalArchivingFailing
           expr: increase(cnpg_pg_stat_archiver_failed_count[10m]) > 0
           for: 10m
-          labels: { severity: page }
+          labels: { severity: ticket }
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.pod }}: WAL archiving fails, point-in-time recovery window is not advancing"
-            runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#database-backups
-        - alert: PostgresWalArchivingStale
-          expr: cnpg_pg_stat_archiver_seconds_since_last_archival > 900 and on (pod) cnpg_pg_replication_in_recovery == 0
-          for: 5m
-          labels: { severity: page }
-          annotations:
-            summary: "{{ $labels.namespace }}/{{ $labels.pod }}: no WAL archived for 15 minutes (archive_timeout is 5 minutes)"
             runbook: https://github.com/MIERAI/gitops-platform-blueprint/blob/main/docs/runbook.md#database-backups
         - alert: PostgresReplicationLag
           expr: cnpg_pg_replication_lag > 30

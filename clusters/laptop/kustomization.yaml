@@ -1,6 +1,6 @@
 # The laptop cluster (k3s on a Linux laptop, always on): every Application of apps/, plus
 # - object storage outside the cluster (host SeaweedFS on its own disk): backups survive a cluster rebuild
-# - hourly encrypted off-site copy of the backups to the phone (platform/offsite-backup)
+# - hourly encrypted off-site copy of the backups to the phone (platform/offsite-backup), and its SLO
 # - delivery board: every change of every application, from PR to prod, and the promotion gates (platform/delivery-board, :30090)
 # - Alertmanager routes our alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
@@ -11,6 +11,7 @@ resources:
   - ../../apps
   - platform-alert-speaker.yaml
   - platform-offsite-backup.yaml
+  - platform-offsite-backup-slo.yaml
   - platform-delivery-board.yaml
 patches:
   - target: { kind: Application, name: platform-chaos-mesh }

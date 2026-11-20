@@ -40,3 +40,31 @@ slos:
       Service), but not an RPC itself (it is unauthenticated and runs no query), and only at probe granularity.
     objective: 99.5
     probe: { service: api-factory, port: 8080, path: /healthz }
+  # Scheduled-job SLOs of its database (gitops-platform-blueprint docs/slo.md §1 "scheduled job"): what someone who
+  # has to restore would get. Time-based: the share of 30s evaluations at which the safety net is in place.
+  - name: recovery-point
+    description: >-
+      Every write reaches the object store (WAL archiving): bad while a WAL segment of the primary has
+      waited for archiving 10 minutes on end (platform/pyrra/slis.yaml). An idle database is good (no WAL, nothing at
+      risk). Pages: the recovery point falls further behind every minute and pg_wal grows until the disk is full.
+      Blind to WAL not yet switched into a segment (≤ archive_timeout, 5 min).
+    objective: 99.5
+    runbook: database-backups
+    bool: { metric: "cnpg:wal_archive_keeps_up:bool" }
+  - name: base-backup
+    description: >-
+      A base backup (daily, 03:00 JST) at most 26 hours old in the object store. A ticket, never a page —
+      while WAL archiving works the recovery point is intact; an old base backup only makes a restore replay more WAL.
+    objective: 95                # one missed night ≈ a day of a 33.6 h budget; two in 28 days spend it
+    runbook: database-backups
+    severities: { fastBurn: ticket, mediumBurn: ticket }
+    age: { metric: barman_cloud_cloudnative_pg_io_last_available_backup_timestamp, max: 26h }
+  - name: restore-check
+    description: >-
+      The nightly restore check (04:30 JST) succeeded within the last 26 hours. A ticket — the live data
+      is fine, what is in doubt is whether it could be restored.
+    objective: 95
+    environments: [prod]         # the CronJob runs in prod only (components/restore-check)
+    runbook: daily-restore-check
+    severities: { fastBurn: ticket, mediumBurn: ticket }
+    age: { metric: kube_cronjob_status_last_successful_time, matchers: 'cronjob="restore-check"', max: 26h }

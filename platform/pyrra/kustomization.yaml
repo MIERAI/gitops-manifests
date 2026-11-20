@@ -8,6 +8,6 @@ namespace: monitoring
 labels:
   - pairs: { app.kubernetes.io/name: pyrra }   # also in selectors: "component: api" alone is not unique in monitoring
     includeSelectors: true
-resources: [crd.yaml, operator.yaml, api.yaml]
+resources: [crd.yaml, operator.yaml, api.yaml, slis.yaml]   # slis.yaml: platform-wide SLI recording rules
 images:
   - { name: ghcr.io/pyrra-dev/pyrra, newTag: v0.10.2 }

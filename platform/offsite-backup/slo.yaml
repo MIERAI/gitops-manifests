@@ -1,0 +1,14 @@
+# Values of the platform's SLO chart (platform/slo) for the off-site copy: a platform job, not an application's, so
+# it is declared here and rendered by clusters/laptop/platform-offsite-backup-slo.yaml (same format as app.yaml slos).
+app: platform
+env: laptop
+slos:
+  - name: offsite-backup
+    description: >-
+      The hourly encrypted copy of the object store to the phone succeeded within the last 3 hours (3 missed runs:
+      phone off or out of the tailnet, sftp or crypt failure). A ticket — the local backups are unaffected; this is
+      the "laptop lost" copy.
+    objective: 99               # ≈ 6.7 h stale per 28 days: one night with the phone off spends most of it
+    runbook: off-site-backup
+    severities: { fastBurn: ticket, mediumBurn: ticket }
+    age: { metric: kube_cronjob_status_last_successful_time, matchers: 'cronjob="offsite-backup"', max: 3h }

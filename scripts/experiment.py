@@ -8,6 +8,8 @@ Experiment format (experiments/README.md):
 
   hypothesis: what is broken           namespace: where (needs chaos-mesh.org/inject=enabled)
   fault: [Chaos Mesh objects]          created in the namespace; deleted at the end, whatever happens
+  load: [Kubernetes objects]           optional: what the fault needs to matter (e.g. a Job that writes), created
+                                       before the fault, deleted with it; not checked for injection
   timeout: 15m                         how long the fault stays at most
   expect:
     fire:  [{alert, labels: {...}, within: 10m}]   each must fire within its time
@@ -105,13 +107,17 @@ class Run:
             self.fail(f"expected alert already firing before the fault: {stale} — cannot test it now")
             return
         objs = x.get("fault") or []
-        manifest = "\n---\n".join(yaml.safe_dump({**o, "metadata": {**o.get("metadata", {}), "namespace": self.ns}})
-                                  for o in objs)
+        manifest = self.manifest(objs)
+        loads = x.get("load") or []
+        load_manifest = self.manifest(loads)
         self.say(f"hypothesis: {x['hypothesis']}")
         if not objs:  # the negative test: a page already firing is noise too
             for a in before:
                 if a.get("severity") == "page":
                     self.fail(f"page firing under normal conditions: {describe(a)}")   # once (baseline: not again)
+        if loads:
+            kubectl("apply", "-f", "-", stdin=load_manifest)
+            self.say(f"load created in {self.ns}: " + ", ".join(f"{o['kind']}/{o['metadata']['name']}" for o in loads))
         t0 = time.time()
         if objs:
             kubectl("apply", "-f", "-", stdin=manifest)
@@ -147,6 +153,9 @@ class Run:
         finally:
             if objs:
                 self.remove(objs, manifest, t0)
+            if loads:
+                kubectl("delete", "--ignore-not-found", "--wait=false", "-f", "-", stdin=load_manifest)
+                self.say("load removed")
         for i, w in enumerate(fire):
             if i not in seen:
                 self.fail(f"did not fire within {w.get('within', '10m')}: {w['alert']} {w.get('labels', {})}")
@@ -164,6 +173,9 @@ class Run:
             for i in left:
                 self.fail(f"still firing {x['recover']} after the fault: {fire[i]['alert']} {fire[i].get('labels', {})}")
         self.say("PASS" if self.ok else "FAIL")
+
+    def manifest(self, objs):
+        return "\n---\n".join(yaml.safe_dump({**o, "metadata": {**o.get("metadata", {}), "namespace": self.ns}}) for o in objs)
 
     def remove(self, objs, manifest, t0, limit=60):
         """Delete the fault without blocking on Chaos Mesh's finalizer (it hangs when the fault never got in, or the
