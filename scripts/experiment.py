@@ -15,6 +15,7 @@ Experiment format (experiments/README.md):
     fire:  [{alert, labels: {...}, within: 10m}]   each must fire within its time
     quiet: [{alert, labels: {...}}]                these must not fire (besides: no other page may fire)
   recover: 10m                         after the fault: the fired alerts resolve within this (skip: --no-recover)
+  ignore: '.+-(dev|staging)'           namespaces (regex) whose pages notify nobody on this cluster: not judged
   effect: {query: <promql>, within: 3m}  the fault must visibly bite (the query returns data) — Chaos Mesh's
                                        "AllInjected" only says the rules are in place, not that traffic hits them
                                        (a NetworkChaos on the client side, filtered on pod IPs, never matched Service traffic)
@@ -158,9 +159,14 @@ class Run:
         loads = x.get("load") or []
         load_manifest = self.manifest(loads)
         self.say(f"hypothesis: {x['hypothesis']}")
+        ignore = re.compile(x["ignore"]) if x.get("ignore") else None
+
+        def ignored(a):
+            return bool(ignore and ignore.fullmatch(a.get("namespace", "")))
+
         if not objs:  # the negative test: a page already firing is noise too
             for a in before:
-                if a.get("severity") == "page":
+                if a.get("severity") == "page" and not ignored(a):
                     self.fail(f"page firing under normal conditions: {describe(a)}")   # once (baseline: not again)
         if loads:
             kubectl("apply", "-f", "-", stdin=load_manifest)
@@ -184,7 +190,7 @@ class Run:
                         self.say(f"✓ fired after {seen[i] / 60:.1f} min: {w['alert']} {w.get('labels', {})}")
                 for a in now:
                     k = json.dumps(a, sort_keys=True)
-                    if k in baseline or k in unexpected:
+                    if k in baseline or k in unexpected or ignored(a):
                         continue
                     if any(matches(a, q) for q in quiet):
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
