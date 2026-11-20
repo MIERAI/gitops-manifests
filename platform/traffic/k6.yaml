@@ -12,7 +12,7 @@ spec:
       containers:
         - name: k6
           image: grafana/k6:1.8.2
-          args: [run, --quiet, --no-summary, /scripts/traffic.js]
+          args: [run, --quiet, --summary-mode=disabled, /scripts/traffic.js]
           env:
             - { name: DAY_MINUTES, value: "60" }      # one compressed day per hour
             - { name: DAYS, value: "4" }              # then the container exits and restarts (burst scenarios preallocate VUs)

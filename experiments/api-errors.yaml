@@ -1,0 +1,23 @@
+hypothesis: Every api response to GET /products is replaced by a 503 on its way out (a broken proxy / sidecar between
+  web and api). Users get pages without products; web's availability SLO must page. api's own SLO does not see it
+  (api answered 200) — the page is on web, and web's upstream_requests_total{code="503"} names api as the cause.
+namespace: storefront-staging
+fault:
+  - apiVersion: chaos-mesh.org/v1alpha1
+    kind: HTTPChaos
+    metadata: { name: api-503 }
+    spec:
+      mode: all
+      selector: { labelSelectors: { app: api } }
+      target: Response
+      port: 8080
+      path: /products
+      replace: { code: 503 }
+      duration: 30m
+timeout: 12m
+expect:
+  fire:
+    - { alert: ErrorBudgetBurn, labels: { namespace: storefront-staging, slo: storefront-web-availability, severity: page, long: 1h }, within: 10m }
+  quiet:
+    - { alert: ErrorBudgetBurn, labels: { namespace: storefront-staging, slo: storefront-web-latency } }
+recover: 15m

@@ -14,7 +14,12 @@ spec:
     targetRevision: 2.8.8
     helm:
       valuesObject:
+        # The chart renders differently each time (self-signed certificates, a random "rollme" pod annotation):
+        # Argo CD would re-sync and restart it forever. Certificates from cert-manager (platform-cert-manager), no
+        # chaosd mTLS (chaosd = physical machines, unused), rollme ignored below.
+        webhook: { certManager: { enabled: true } }
         controllerManager:
+          chaosdSecurityMode: false
           replicaCount: 1
           enableFilterNamespace: true
           resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi } }
@@ -27,7 +32,10 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: chaos-mesh
+  ignoreDifferences:
+    - { group: apps, kind: Deployment, jqPathExpressions: ['.spec.template.metadata.annotations.rollme'] }
+    - { group: apps, kind: DaemonSet, jqPathExpressions: ['.spec.template.metadata.annotations.rollme'] }
   syncPolicy:
     automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true]
     retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
