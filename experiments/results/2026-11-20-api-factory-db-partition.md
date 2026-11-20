@@ -1,0 +1,13 @@
+# api-factory-db-partition: PASS
+
+The API cannot reach Postgres at all (network partition between the API pods and the database pods): every RPC fails, users are fully down, so a page is required within 10 minutes. Prediction, written before the run: the in-pod rpc-availability SLO does NOT page. The readiness probe (/healthz pings the database) takes every pod out of the Service within ~15s, after which RPCs are refused by the Service and never counted; the ~15s of counted failures are well under 14x the 0.1% budget over 1h. The health probe calls /healthz through the Service, sees every call fail and pages after ~6.5 min (14x a 0.5% budget = 7% of the hour, 4.2 min, plus for 2m). Also predicted: the liveness probe (same /healthz) restarts the API containers every ~1 min, so the in-pod series vanish and SLOMetricAbsent (ticket) follows after ~12 min; after the fault, restart back-off delays recovery by up to a few minutes.
+
+```
+18:01:33 [api-factory-db-partition] hypothesis: The API cannot reach Postgres at all (network partition between the API pods and the database pods): every RPC fails, users are fully down, so a page is required within 10 minutes. Prediction, written before the run: the in-pod rpc-availability SLO does NOT page. The readiness probe (/healthz pings the database) takes every pod out of the Service within ~15s, after which RPCs are refused by the Service and never counted; the ~15s of counted failures are well under 14x the 0.1% budget over 1h. The health probe calls /healthz through the Service, sees every call fail and pages after ~6.5 min (14x a 0.5% budget = 7% of the hour, 4.2 min, plus for 2m). Also predicted: the liveness probe (same /healthz) restarts the API containers every ~1 min, so the in-pod series vanish and SLOMetricAbsent (ticket) follows after ~12 min; after the fault, restart back-off delays recovery by up to a few minutes.
+18:01:33 [api-factory-db-partition] fault created in api-factory-prod: NetworkChaos/api-factory-db-partition
+18:01:39 [api-factory-db-partition] ✓ fault injected (5s)
+18:08:11 [api-factory-db-partition] ✓ fired after 6.6 min: ErrorBudgetBurn {'namespace': 'api-factory-prod', 'slo': 'api-factory-health-probe', 'severity': 'page', 'long': '1h'}
+18:08:16 [api-factory-db-partition] fault removed after 6.7 min
+18:13:02 [api-factory-db-partition] ✓ resolved 4.8 min after the fault: ErrorBudgetBurn {'namespace': 'api-factory-prod', 'slo': 'api-factory-health-probe', 'severity': 'page', 'long': '1h'}
+18:13:02 [api-factory-db-partition] PASS
+```

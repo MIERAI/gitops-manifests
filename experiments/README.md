@@ -19,7 +19,7 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | sample-app-down | every sample-app pod fails | sample-app availability pages |
 | quiet-traffic | none: 2h of normal traffic | nothing pages (the negative test) |
 | api-factory-one-pod-down | one of two API pods fails 10 min | nothing pages |
-| api-factory-db-slow | API → Postgres packets +200ms (NetworkChaos) | rpc-latency pages; rpc-availability and health-probe quiet |
+| api-factory-db-slow | Postgres → API packets +200ms (NetworkChaos, on the Postgres side: the API uses a ClusterIP) | rpc-latency pages; rpc-availability and health-probe quiet |
 | api-factory-db-partition | API ↮ Postgres partition (NetworkChaos) | health-probe pages (predicted: rpc-availability does not, readiness hides the failures) |
 | backup-store-unreachable | api-factory dev: Postgres pod → object store partitioned (NetworkChaos), with writes | recovery-point SLO pages; `PostgresWalArchivingFailing` ticket; base-backup SLO quiet |
 | backup-normal-writes | none: dev's database writing (WAL archived every 5 min) | no backup page or ticket (the negative test) |

@@ -1,5 +1,5 @@
 hypothesis: >-
-  Every packet from the API to Postgres is delayed by 200ms (a slow network path to the database, an overloaded
+  Every packet from Postgres to the API is delayed by 200ms (a slow network path to the database, an overloaded
   node). Each query needs one round trip (pgx QueryExecModeExec), so every RPC takes 200ms or more, far under the 3s
   request timeout: users get slow answers, not errors. rpc-latency (99% under 100ms) must page; rpc-availability and
   the health probe (a 1s database ping) must stay quiet. Prediction: the latency page after ~10.5 min (14x a 1%
@@ -12,11 +12,14 @@ fault:
     spec:
       action: delay
       mode: all
-      selector: { labelSelectors: { app: api-factory } }
+      # Injected on the Postgres side: the API connects through the postgres-rw Service, so its packets leave the pod
+      # addressed to the ClusterIP and a filter on the Postgres pod IPs never matches them (first run: injected,
+      # no effect). Postgres's packets go to the API pod IPs.
+      selector: { labelSelectors: { cnpg.io/cluster: postgres } }
       direction: to
       target:
         mode: all
-        selector: { labelSelectors: { cnpg.io/cluster: postgres } }
+        selector: { labelSelectors: { app: api-factory } }
       delay: { latency: 200ms, jitter: 20ms }
       duration: 30m
 timeout: 14m
