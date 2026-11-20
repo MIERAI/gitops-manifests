@@ -6,9 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 owner=${1:?usage: scripts/fork.sh <github owner>}
-from=https://github.com/MIERAI/gitops-manifests.git
+from=https://github.com/MIERAI/gitops-manifests''".git"   # spelled apart: this file must not match itself
 to=https://github.com/$owner/gitops-manifests.git
-files=$(git grep -l -F "$from" || true)
+files=$(git grep -l -F "$from" -- . ':!scripts/fork.sh' || true)
 [ -n "$files" ] || { echo "nothing to change (already forked?)"; exit 0; }
 for f in $files; do
   python3 - "$f" "$from" "$to" <<'PY'
