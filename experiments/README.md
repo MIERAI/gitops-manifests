@@ -42,5 +42,6 @@ recovery point.
 
 NetworkChaos with a `target` matches the target pods' IPs. A client reaching a database through its Service sends
 packets to the Service IP (translated on the node, outside the pod), so a fault on the client side towards the
-database pods may not match (to be verified): the storefront experiments select the database and target the clients
-(the replies carry the clients' pod IPs), which holds either way.
+database pods does not match. Measured on kind (storefront-dev, 2026-11-20): +2s selected on the workers with target
+Postgres left the order delay at 0.45s (normal); +2s selected on Postgres with target the workers gave 8.1s (4 round
+trips). Select the database and target the clients: the replies carry the clients' pod IPs.
