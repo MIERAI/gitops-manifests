@@ -10,6 +10,7 @@ resources:
   - platform-cert-manager.yaml
   - platform-chaos-mesh.yaml     # fault injection for the SLO experiments (experiments/)
   - platform-cnpg.yaml
+  - platform-experiments.yaml   # the scheduled experiment regression (lab only: clusters/laptop deletes it)
   - platform-kyverno.yaml
   - platform-monitoring.yaml
   - platform-object-storage.yaml

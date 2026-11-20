@@ -1,0 +1,22 @@
+# The scheduled fault-experiment regression (platform/experiments): every experiment of experiments/ daily, results as
+# metrics (slo_experiment_*), a ticket when it fails or stops running. Lab clusters only — kind and the demo cluster
+# (clusters/demo: platform/experiments-demo). clusters/laptop deletes this Application: no faults there, ever (and
+# the runner refuses to start on a node that is not kind).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-experiments
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/experiments
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: slo-experiments
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

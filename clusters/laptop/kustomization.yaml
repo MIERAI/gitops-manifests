@@ -14,6 +14,13 @@ resources:
   - platform-offsite-backup-slo.yaml
   - platform-delivery-board.yaml
 patches:
+  # no fault injection on the laptop, ever: the scheduled experiment regression is a lab component (kind, demo)
+  - target: { kind: Application, name: platform-experiments }
+    patch: |-
+      $patch: delete
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata: { name: platform-experiments }
   - target: { kind: Application, name: platform-chaos-mesh }
     patch: |-
       - { op: replace, path: /spec/source/helm/valuesObject/chaosDaemon/socketPath, value: /run/k3s/containerd/containerd.sock }

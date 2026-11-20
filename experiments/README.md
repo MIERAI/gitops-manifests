@@ -39,7 +39,9 @@ Format: `hypothesis`, `namespace`, `effect` (a PromQL query that returns data on
 "injected" only means the rules are in place), `fault` (Chaos Mesh objects, created in the namespace and always deleted),
 `load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
 fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
-`within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault).
+`within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault), `ignore` (namespaces whose
+pages notify nobody), `skip` (why the scheduled regression cannot run it) and `clusters` (only
+on these, e.g. `[kind]`; default: every lab cluster).
 
 The SLO alerts come from Pyrra: `ErrorBudgetBurn` with labels `slo`, `namespace`, `severity` (page / ticket) and the
 windows `long` / `short` (fast burn: `long: 1h`, 14× the budget rate, for 2m); `SLOMetricAbsent` (ticket).
@@ -86,3 +88,41 @@ Blind spots: the results files name no cluster (`--results-cluster`, default dem
 own state (silences, repeat_interval, deduplication across a Prometheus restart) is not modelled; incident evidence
 is namespace-wide, so a coincidence (a routine rollout) counts — the reasons are printed for a human to disagree;
 Prometheus keeps 30 days, so the report cannot look further back. Tests: `scripts/test_alert_report.py` (CI: validate).
+
+## Scheduled regression
+
+On the lab clusters (kind, the demo cluster; never the laptop) every experiment runs daily, like unit tests for
+alerting: `platform/experiments` (a CronJob, 09:00 JST) clones this repository at main and runs
+`scripts/experiment-regression.py --cluster kind`. One queue per namespace, the queues in parallel; within a namespace
+the negative tests first, then the faults, each one only when the namespace is free (no experiment of anyone, its
+cooldown over, nothing paging there) and marked 45 min after its fault. A full run takes ~9 h (storefront-dev: 7
+experiments). Not run, and said so: `skip:`, `clusters:` without this cluster, a namespace that does not exist here.
+The runner refuses to start unless every node is a kind node.
+
+```sh
+uv run --with pyyaml python3 scripts/experiment-regression.py --cluster kind --kubeconfig ~/.kube/kind-gitops.yaml --dry-run   # the plan
+kubectl -n slo-experiments create job --from=cronjob/experiment-regression regression-$(date +%s)                           # a run now
+kubectl -n slo-experiments get configmap experiment-results -o jsonpath='{.data.api-down\.json}'                             # last result
+```
+
+Results become metrics (`experiment-exporter`, from the ConfigMap `experiment-results`, which manual runs with
+`--record slo-experiments/experiment-results` update too). Labels `experiment`, `namespace`, and per expected alert
+`kind` (fire / quiet), `alert`, `slo`, `severity`, `long`: they join to the SLOs on `namespace` + `slo`.
+
+| Metric | |
+|---|---|
+| `slo_experiment_last_success` | 1: the last run passed |
+| `slo_experiment_last_run_timestamp_seconds`, `…_last_success_timestamp_seconds`, `…_last_duration_seconds` | when it last ran / passed, how long |
+| `slo_experiment_expectation_met` | per expectation: fired in time (fire) or stayed quiet (quiet) |
+| `slo_experiment_detection_seconds`, `slo_experiment_recovery_seconds` | fault → alert fired; fault removed → alert resolved |
+| `slo_experiment_regression_status{status, reason}` | each experiment in the last scheduled run: pass / fail / error / skipped (reason) |
+| `slo_experiment_regression_last_start_timestamp_seconds`, `…_last_finished_timestamp_seconds`, `slo_experiment_regression_experiments{status}` | the run itself |
+
+"Is this SLO's page verified, and when": `slo_experiment_expectation_met{kind="fire", slo="…"} == 1` with
+`slo_experiment_last_run_timestamp_seconds`.
+
+Tickets (never pages): `SLOExperimentFailed` (an experiment's last run failed: until it passes, that alert is not
+verified — read its report in the ConfigMap or the job's log), `SLOExperimentRegressionStale` (no run finished for 2
+days: the lab was asleep, the CronJob broke, the exporter is down), `SLOExperimentRegressionBroken` (the job itself
+failed: a crash, results not recorded, killed). A run killed mid-fault removes its faults (SIGTERM); a hard kill
+leaves them to their `duration` and the namespace mark to its 4 h expiry.

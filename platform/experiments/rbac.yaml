@@ -1,0 +1,128 @@
+# The runner's rights, nothing more (scripts/experiment.py, experiment-regression.py):
+#   read namespaces (marks, which exist) and nodes (the "is this kind?" guard)       cluster-wide, read-only
+#   annotate the experiments' namespaces (lock, cooldown)                             only those, by name
+#   create / read / delete Chaos Mesh PodChaos and NetworkChaos                       only in those namespaces
+#   create / read / delete Jobs (an experiment's `load`, e.g. backup writes)          only in api-factory-dev
+#   the application fault switch: ConfigMap storefront-faults (storefront internal/fault) only in storefront-staging
+#   query Prometheus through the API server's service proxy                           only kps-prometheus
+#   write its results ConfigMap                                                       only its own namespace
+# A new experiment namespace: add it to experiment-runner-annotate and a RoleBinding below.
+# Chaos Mesh only injects into namespaces annotated chaos-mesh.org/inject=enabled (platform-chaos-mesh).
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: experiment-runner, namespace: slo-experiments }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: experiment-runner-read }
+rules:
+  - { apiGroups: [""], resources: [namespaces, nodes], verbs: [get, list] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: experiment-runner-read }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-read }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: experiment-runner-annotate }
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [patch]
+    resourceNames: [api-factory-dev, api-factory-prod, sample-app-dev, storefront-dev, storefront-staging, storefront-prod]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: experiment-runner-annotate }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-annotate }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+# bound per namespace (RoleBindings below), never cluster-wide
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: experiment-runner-faults }
+rules:
+  - { apiGroups: [chaos-mesh.org], resources: [podchaos, networkchaos], verbs: [get, create, patch, delete] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: experiment-runner-load }
+rules:
+  - { apiGroups: [batch], resources: [jobs], verbs: [get, create, patch, delete] }
+---
+# create cannot be limited to a name (RBAC): any new ConfigMap; existing ones only storefront-faults
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: experiment-runner-fault-switch }
+rules:
+  - { apiGroups: [""], resources: [configmaps], verbs: [create] }
+  - { apiGroups: [""], resources: [configmaps], verbs: [get, patch, delete], resourceNames: [storefront-faults] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-faults, namespace: api-factory-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-faults }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-load, namespace: api-factory-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-load }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-faults, namespace: api-factory-prod }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-faults }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-faults, namespace: sample-app-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-faults }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-faults, namespace: storefront-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-faults }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-faults, namespace: storefront-prod }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-faults }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-fault-switch, namespace: storefront-staging }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: experiment-runner-fault-switch }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: experiment-runner-prometheus, namespace: monitoring }
+rules:
+  - { apiGroups: [""], resources: [services/proxy], verbs: [get], resourceNames: ["kps-prometheus:9090"] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-prometheus, namespace: monitoring }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: experiment-runner-prometheus }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: experiment-runner-results, namespace: slo-experiments }
+rules:
+  - { apiGroups: [""], resources: [configmaps], verbs: [create] }
+  - { apiGroups: [""], resources: [configmaps], verbs: [get, patch], resourceNames: [experiment-results] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: experiment-runner-results, namespace: slo-experiments }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: experiment-runner-results }
+subjects: [{ kind: ServiceAccount, name: experiment-runner, namespace: slo-experiments }]

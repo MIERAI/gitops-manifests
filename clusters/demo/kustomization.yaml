@@ -13,3 +13,6 @@ patches:
         value:
           matchExpressions:
             - { key: private, operator: NotIn, values: ["true"] }
+  - target: { kind: Application, name: platform-experiments }   # no api-factory namespaces to bind the runner to
+    patch: |-
+      - { op: replace, path: /spec/source/path, value: platform/experiments-demo }
