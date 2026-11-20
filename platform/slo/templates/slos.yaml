@@ -14,6 +14,7 @@ apiVersion: pyrra.dev/v1alpha1
 kind: ServiceLevelObjective
 metadata:
   name: {{ $.Values.app }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     pyrra.dev/app: {{ $.Values.app | quote }}
     pyrra.dev/env: {{ $.Values.env | quote }}
