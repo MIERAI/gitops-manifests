@@ -29,7 +29,14 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | storefront-worker-overloaded | Postgres → workers +8s per packet (below daytime arrivals) | order-freshness pages; completeness quiet |
 | storefront-db-unreachable | Postgres → web and workers: every packet dropped | order-intake pages; freshness "SLI absent" ticket |
 
-Format: `hypothesis`, `namespace`, `fault` (Chaos Mesh objects, created in the namespace and always deleted),
+Several people / agents can run experiments at once: the runner marks the namespace (annotation
+`gitops-platform/experiment`, the lock: one experiment per namespace) and keeps it marked 30 min after the fault
+(`…-cooldown`; burn-rate alerts can fire after recovery). A page in a marked namespace belongs to that experiment;
+any other page fails every running experiment. A run killed hard leaves its mark; it expires after 4h, or
+`kubectl annotate ns <ns> gitops-platform/experiment-`.
+
+Format: `hypothesis`, `namespace`, `effect` (a PromQL query that returns data once the fault bites: Chaos Mesh's
+"injected" only means the rules are in place), `fault` (Chaos Mesh objects, created in the namespace and always deleted),
 `load` (optional Kubernetes objects the fault needs to matter, e.g. a Job that writes; created first, deleted with the
 fault), `timeout`, `hold` (keep going this long even when everything expected fired), `expect.fire` (`alert`, `labels`,
 `within`), `expect.quiet`, `recover` (the fired alerts resolve within this after the fault).

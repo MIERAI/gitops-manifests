@@ -12,6 +12,7 @@ fault:
       mode: all
       selector: { labelSelectors: { app: api } }
       duration: 30m
+effect: { query: 'sum(rate(upstream_requests_total{namespace="storefront-dev", code="error"}[1m])) > 0', within: 3m }   # web gets no answer from api
 timeout: 15m
 expect:
   fire:

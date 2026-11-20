@@ -15,6 +15,13 @@ Experiment format (experiments/README.md):
     fire:  [{alert, labels: {...}, within: 10m}]   each must fire within its time
     quiet: [{alert, labels: {...}}]                these must not fire (besides: no other page may fire)
   recover: 10m                         after the fault: the fired alerts resolve within this (skip: --no-recover)
+  effect: {query: <promql>, within: 3m}  the fault must visibly bite (the query returns data) — Chaos Mesh's
+                                       "AllInjected" only says the rules are in place, not that traffic hits them
+                                       (a NetworkChaos on the client side, filtered on pod IPs, never matched Service traffic)
+
+Namespaces are marked while an experiment runs (annotation gitops-platform/experiment, which is also the lock: one
+experiment per namespace, across processes and people) and for 30 min after (a burn-rate alert can still fire after
+recovery). Pages in a marked namespace belong to its experiment; every other page fails every running experiment.
 
 Exit 1 if any experiment failed. A report per run: experiments/results/<date>-<name>.md.
 """
@@ -23,6 +30,7 @@ import datetime
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -39,7 +47,22 @@ PROM = "/api/v1/namespaces/monitoring/services/kps-prometheus:9090/proxy/api/v1/
 POLL = 15
 KUBE = ["kubectl"]
 lock = threading.Lock()
-running_namespaces = set()  # namespaces with an experiment in this run: a page there belongs to that experiment
+MARK = "gitops-platform/experiment"            # <name> <host> <started epoch>
+COOLDOWN = "gitops-platform/experiment-cooldown"  # epoch until which late alerts still belong to the last experiment
+COOLDOWN_S = 1800
+STALE_S = 4 * 3600                                # a mark older than this is left over from a killed run
+
+
+def marked_namespaces():
+    """Namespaces with an experiment running or cooling down (any process): their pages are theirs."""
+    out, now = set(), time.time()
+    for n in json.loads(kubectl("get", "namespaces", "-o", "json"))["items"]:
+        a = n["metadata"].get("annotations") or {}
+        if MARK in a and now - float(a[MARK].split()[-1]) < STALE_S:
+            out.add(n["metadata"]["name"])
+        elif COOLDOWN in a and now < float(a[COOLDOWN]):
+            out.add(n["metadata"]["name"])
+    return out
 
 
 def dur(s):
@@ -90,10 +113,34 @@ class Run:
 
     def run(self):
         try:
+            self.lock()
+        except Exception as e:
+            self.fail(f"not started: {e}")
+            self.say("FAIL")
+            return
+        try:
             self._run()
         except Exception as e:  # a crash is a failed experiment, never a silent pass
             self.fail(f"runner error: {e}")
             self.say("FAIL")
+        finally:
+            self.unlock()
+
+    def lock(self):
+        """Mark the namespace; kubectl annotate without --overwrite refuses an existing mark: the lock."""
+        a = (json.loads(kubectl("get", "namespace", self.ns, "-o", "json"))["metadata"].get("annotations") or {})
+        if MARK in a and time.time() - float(a[MARK].split()[-1]) >= STALE_S:
+            kubectl("annotate", "namespace", self.ns, f"{MARK}-")   # left over from a killed run
+        try:
+            kubectl("annotate", "namespace", self.ns, f"{MARK}={self.name} {socket.gethostname()} {time.time():.0f}")
+        except RuntimeError:
+            raise RuntimeError(f"{self.ns} is busy: {a.get(MARK)} (one experiment per namespace)")
+
+    def unlock(self):
+        try:
+            kubectl("annotate", "--overwrite", "namespace", self.ns, f"{COOLDOWN}={time.time() + COOLDOWN_S:.0f}", f"{MARK}-")
+        except RuntimeError as e:
+            self.say(f"could not unmark {self.ns}: {e}")
 
     def _run(self):
         x = self.x
@@ -126,9 +173,11 @@ class Run:
         try:
             if objs:
                 self.wait_injected(objs)
+                if x.get("effect"):
+                    self.wait_effect(x["effect"])
             deadline = t0 + max([dur(x.get("timeout", "15m"))] + [dur(w.get("within", "10m")) for w in fire])
             while time.time() < deadline:
-                now = firing()
+                now, marked = firing(), marked_namespaces()
                 for i, w in enumerate(fire):
                     if i not in seen and any(matches(a, w) for a in now):
                         seen[i] = time.time() - t0
@@ -140,8 +189,8 @@ class Run:
                     if any(matches(a, q) for q in quiet):
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
                     elif a.get("severity") == "page" and not any(matches(a, w) for w in fire) \
-                            and (a.get("namespace") == self.ns or a.get("namespace") not in running_namespaces):
-                        # judged here: pages in our namespace, and in namespaces no experiment of this run touches
+                            and (a.get("namespace") == self.ns or a.get("namespace") not in marked):
+                        # judged here: pages in our namespace, and in namespaces no experiment (of anyone) marks
                         # (a page next door is the neighbour's result, not noise caused by us)
                         unexpected[k] = f"unexpected page: {describe(a)}"
                     else:
@@ -211,6 +260,16 @@ class Run:
                 raise RuntimeError(f"fault not injected after {limit}s: {'; '.join(pending)}")
             time.sleep(5)
 
+    def wait_effect(self, e):
+        t = time.time()
+        q = urllib.parse.quote(e["query"])
+        while time.time() - t < dur(e.get("within", "3m")):
+            if json.loads(kubectl("get", "--raw", f"{PROM}query?query={q}"))["data"]["result"]:
+                self.say(f"✓ fault takes effect ({time.time() - t:.0f}s): {e['query']}")
+                return
+            time.sleep(POLL)
+        raise RuntimeError(f"fault injected but no effect within {e.get('within', '3m')}: {e['query']}")
+
     def report(self, root):
         os.makedirs(os.path.join(root, "experiments", "results"), exist_ok=True)
         f = os.path.join(root, "experiments", "results", f"{datetime.date.today()}-{self.name}.md")
@@ -228,10 +287,8 @@ def main():
     if a.kubeconfig:
         KUBE.extend(["--kubeconfig", a.kubeconfig])
     runs = [Run(f, not a.no_recover) for f in a.files]
-    for r in runs:
-        if r.ns in running_namespaces:
-            sys.exit(f"two experiments in {r.ns}: they would share the burn-rate windows (run them one after the other)")
-        running_namespaces.add(r.ns)
+    if len({r.ns for r in runs}) < len(runs):
+        sys.exit("two experiments in one namespace: they would share the burn-rate windows (run them one after the other)")
     threads = [threading.Thread(target=r.run) for r in runs]
     for t in threads:
         t.start()

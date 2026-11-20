@@ -11,6 +11,7 @@ fault:
       mode: all
       selector: { labelSelectors: { app: sample-app } }
       duration: 30m
+effect: { query: 'max(probe_success{namespace="sample-app-dev"}) == 0', within: 3m }   # the probe fails
 timeout: 15m
 expect:
   fire:

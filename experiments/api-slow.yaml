@@ -12,6 +12,7 @@ fault:
       selector: { labelSelectors: { app: api } }
       delay: { latency: 800ms, jitter: 50ms }
       duration: 30m
+effect: { query: 'sum(rate(upstream_request_duration_seconds_sum{namespace="storefront-prod"}[1m])) / sum(rate(upstream_request_duration_seconds_count{namespace="storefront-prod"}[1m])) > 0.5', within: 3m }   # web → api calls take over 0.5s on average
 timeout: 12m
 expect:
   fire:
