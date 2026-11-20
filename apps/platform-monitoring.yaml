@@ -24,10 +24,11 @@ spec:
           rules: { etcd: false, kubeControllerManager: false, kubeSchedulerAlerting: false, kubeSchedulerRecording: false, kubeProxy: false }
         prometheus:
           prometheusSpec:
-            # pick up every PodMonitor / ServiceMonitor / PrometheusRule in the cluster (apps ship their own)
+            # pick up every PodMonitor / ServiceMonitor / PrometheusRule / Probe in the cluster (apps ship their own)
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorSelectorNilUsesHelmValues: false
             ruleSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false   # the probe SLOs (platform/slo → Probe)
             retention: 3d
             scrapeInterval: 15s
             evaluationInterval: 15s
