@@ -24,8 +24,9 @@ slos:
     description: An RPC answered without a server error (internal / unavailable / unknown / deadline_exceeded /
       data_loss), as counted by the API itself. Client errors (invalid_argument, not_found, unauthenticated...) and
       canceled (the caller gave up; a slow answer burns rpc-latency instead) are not bad events. Counts the synthetic
-      traffic and dev's post-deploy load test. Blind to requests that never reach a pod, including every pod taken out
-      of the Service by its readiness probe (which pings the database); health-probe sees those.
+      traffic and dev's post-deploy load test. Blind to requests that never reach a pod (no pod running, a broken
+      Service); health-probe sees those. The readiness probe does not ping the database, so a database outage reaches
+      the pods and is counted here.
     objective: 99.9
     availability: { metric: rpc_requests_total, errors: 'code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"' }
   - name: rpc-latency
