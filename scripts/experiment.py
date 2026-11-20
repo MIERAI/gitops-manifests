@@ -177,9 +177,10 @@ class Run:
         def ignored(a):
             return bool(ignore and ignore.fullmatch(a.get("namespace", "")))
 
-        if not objs:  # the negative test: a page already firing is noise too
+        if not objs:  # the negative test: a page already firing is noise too — unless another experiment's namespace
+            marked = marked_namespaces() - {self.ns}   # (its pages are that experiment's result, as in the loop below)
             for a in before:
-                if a.get("severity") == "page" and not ignored(a):
+                if a.get("severity") == "page" and not ignored(a) and a.get("namespace") not in marked:
                     self.fail(f"page firing under normal conditions: {describe(a)}")   # once (baseline: not again)
         if loads:
             kubectl("apply", "-f", "-", stdin=load_manifest)

@@ -95,7 +95,7 @@ On the lab clusters (kind, the demo cluster; never the laptop) every experiment 
 alerting: `platform/experiments` (a CronJob, 09:00 JST) clones this repository at main and runs
 `scripts/experiment-regression.py --cluster kind`. One queue per namespace, the queues in parallel; within a namespace
 the negative tests first, then the faults, each one only when the namespace is free (no experiment of anyone, its
-cooldown over, nothing paging there) and marked 45 min after its fault. A full run takes ~9 h (storefront-dev: 7
+cooldown over, nothing paging there, none of its expected alerts firing) and marked 45 min after its fault. A full run takes ~9 h (storefront-dev: 7
 experiments). Not run, and said so: `skip:`, `clusters:` without this cluster, a namespace that does not exist here.
 The runner refuses to start unless every node is a kind node.
 
