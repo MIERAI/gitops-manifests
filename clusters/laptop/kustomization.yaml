@@ -27,7 +27,7 @@ patches:
         value:
           route:
             receiver: "null"
-            group_by: [alertname, namespace, slo]
+            group_by: [alertname, namespace]   # per service, not per SLO: a database outage burns 4 SLOs, one announcement
             group_wait: 30s
             group_interval: 5m
             repeat_interval: 12h
