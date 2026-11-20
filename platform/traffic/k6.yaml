@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: k6 }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: traffic } }
+  template:
+    metadata: { labels: { app: traffic } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 12345, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: k6
+          image: grafana/k6:1.8.2
+          args: [run, --quiet, --no-summary, /scripts/traffic.js]
+          env:
+            - { name: DAY_MINUTES, value: "60" }      # one compressed day per hour
+            - { name: DAYS, value: "4" }              # then the container exits and restarts (burst scenarios preallocate VUs)
+            - { name: PEAK_RPM, value: "300" }        # prod's peak: 5 req/s; night ≈ 0.2 req/s
+            - { name: ENVS, value: "prod:1,staging:0.3,dev:0.3" }
+          volumeMounts: [{ name: script, mountPath: /scripts }, { name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+      volumes:
+        - { name: script, configMap: { name: traffic-script } }
+        - { name: tmp, emptyDir: {} }

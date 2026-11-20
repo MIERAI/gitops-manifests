@@ -1,0 +1,33 @@
+# Fault injection for the SLO experiments (experiments/): Chaos Mesh, pinned chart. Only namespaces annotated
+# chaos-mesh.org/inject=enabled can be targeted (enableFilterNamespace): the application namespaces (set by
+# apps/applications.yaml), never the platform's. Faults only on our own clusters.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-chaos-mesh
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.chaos-mesh.org
+    chart: chaos-mesh
+    targetRevision: 2.8.8
+    helm:
+      valuesObject:
+        controllerManager:
+          replicaCount: 1
+          enableFilterNamespace: true
+          resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi } }
+        chaosDaemon:
+          runtime: containerd
+          socketPath: /run/containerd/containerd.sock   # kind; k3s: clusters/laptop
+          resources: { requests: { cpu: 10m, memory: 64Mi }, limits: { memory: 256Mi } }
+        dashboard: { create: false }    # experiments are files (experiments/), run by scripts/experiment.py
+        dnsServer: { create: false }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chaos-mesh
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
