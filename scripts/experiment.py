@@ -37,7 +37,7 @@ PROM = "/api/v1/namespaces/monitoring/services/kps-prometheus:9090/proxy/api/v1/
 POLL = 15
 KUBE = ["kubectl"]
 lock = threading.Lock()
-expected_anywhere = []  # (alert, labels) every running experiment expects: not "unexpected" for the others
+running_namespaces = set()  # namespaces with an experiment in this run: a page there belongs to that experiment
 
 
 def dur(s):
@@ -134,7 +134,9 @@ class Run:
                     if any(matches(a, q) for q in quiet):
                         unexpected[k] = f"must stay quiet but fired: {describe(a)}"
                     elif a.get("severity") == "page" and not any(matches(a, w) for w in fire) \
-                            and not any(matches(a, w) for w in expected_anywhere):
+                            and (a.get("namespace") == self.ns or a.get("namespace") not in running_namespaces):
+                        # judged here: pages in our namespace, and in namespaces no experiment of this run touches
+                        # (a page next door is the neighbour's result, not noise caused by us)
                         unexpected[k] = f"unexpected page: {describe(a)}"
                     else:
                         continue
@@ -215,7 +217,9 @@ def main():
         KUBE.extend(["--kubeconfig", a.kubeconfig])
     runs = [Run(f, not a.no_recover) for f in a.files]
     for r in runs:
-        expected_anywhere.extend(r.x.get("expect", {}).get("fire", []))
+        if r.ns in running_namespaces:
+            sys.exit(f"two experiments in {r.ns}: they would share the burn-rate windows (run them one after the other)")
+        running_namespaces.add(r.ns)
     threads = [threading.Thread(target=r.run) for r in runs]
     for t in threads:
         t.start()
