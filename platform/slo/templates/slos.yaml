@@ -5,7 +5,9 @@ environment, and the namespace becomes a label of the recording rules and alerts
   latency:      good = metric_bucket{namespace, matchers, le=threshold}  among  metric_count{namespace, matchers}
   probe:        good = probe_success == 1 among the probes: a blackbox prober (platform-blackbox) calls the service from
                 outside its pods every 15s, so an outage with no pod left to count the failures still burns the budget
-                (wave 1: every sample-app pod down paged nobody). Also renders the Probe.
+                (wave 1: every sample-app pod down paged nobody). Also renders the Probe. Optional: url (a full
+                URL instead of service/port/path: something outside the cluster) and prober (another blackbox
+                exporter, host:port: probing from another machine, e.g. the laptop's prod from xiaoxin).
   age:          scheduled jobs. metric = unix time of the last good run; good = every evaluation (30s) at which it is
                 at most `max` old (share of time a fresh result exists). Renders the 0/1 recording rule
                 slo:age_within_max:bool{namespace, slo_age} that Pyrra counts (bool_gauge). A metric that never
@@ -37,12 +39,12 @@ metadata:
   name: {{ $id }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  prober: { url: {{ $.Values.prober | quote }} }
+  prober: { url: {{ $sli.prober | default $.Values.prober | quote }} }
   module: {{ $sli.module | default "http_2xx" }}
   interval: {{ $sli.interval | default "15s" }}
   targets:
     staticConfig:
-      static: [{{ printf "http://%s.%s.svc:%v%s" $sli.service $.Release.Namespace $sli.port ($sli.path | default "/") | quote }}]
+      static: [{{ $sli.url | default (printf "http://%s.%s.svc:%v%s" $sli.service $.Release.Namespace $sli.port ($sli.path | default "/")) | quote }}]
       labels: { slo_probe: {{ $id | quote }} }
 {{- end }}
 {{- if eq $kind "age" }}

@@ -12,6 +12,7 @@ environments:
   - name: staging
     promotion: { from: dev, soak: 5m }
   - name: prod
+    url: http://100.90.245.89:30084   # web (NodePort, laptop)
     promotion: { from: staging, soak: 10m }
 components:                      # how it is deployed: one Argo CD Application <component>-<env> each
   - { name: storefront, kustomize: overlays }        # overlays/<env>/kustomization.yaml (web + api)

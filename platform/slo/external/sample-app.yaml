@@ -1,0 +1,9 @@
+# sample-app prod from outside: see storefront.yaml
+app: sample-app
+env: prod
+slos:
+  - name: hello-external-probe
+    description: /hello answered 2xx within 5s when called from xiaoxin over Tailscale (what a user outside the laptop
+      gets). Burns when the laptop's network, Tailscale or the NodePort fails while the pods are fine.
+    objective: 99.5
+    probe: { url: "http://100.90.245.89:30083/hello", prober: "100.76.236.114:30115" }
