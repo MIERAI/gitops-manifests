@@ -1,0 +1,71 @@
+# The capacity test's identity on the lab (scripts/capacity.py run from the load generator, winpc): only what a test
+# needs, so the generator — a machine that also serves other things — holds no admin credentials of the cluster.
+#   cluster-wide  read nodes (the lab guard, the node address)
+#   namespaces    mark / unmark the namespaces under test (the experiments' lock): patch, named ones only
+#   in each       the temporary NodePort Services <svc>-capacity; read Services, Deployments, HPAs
+#   monitoring    Prometheus' HTTP API through the API server's service proxy
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: capacity-runner, namespace: slo-experiments }
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: capacity-runner-token
+  namespace: slo-experiments
+  annotations: { kubernetes.io/service-account.name: capacity-runner }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: capacity-runner }
+rules:
+  - { apiGroups: [""], resources: [nodes], verbs: [get, list] }
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [storefront-dev, storefront-staging, sample-app-dev]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: capacity-runner }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: capacity-runner-target }
+rules:
+  - { apiGroups: [""], resources: [services], verbs: [get, list, create, patch, delete] }
+  - { apiGroups: [apps], resources: [deployments], verbs: [get, list] }
+  - { apiGroups: [autoscaling], resources: [horizontalpodautoscalers], verbs: [get, list] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: capacity-runner, namespace: storefront-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner-target }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: capacity-runner, namespace: storefront-staging }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner-target }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: capacity-runner, namespace: sample-app-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner-target }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: capacity-runner-prometheus, namespace: monitoring }
+rules:
+  - { apiGroups: [""], resources: [services/proxy], resourceNames: ["kps-prometheus:9090"], verbs: [get] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: capacity-runner, namespace: monitoring }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: capacity-runner-prometheus }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]

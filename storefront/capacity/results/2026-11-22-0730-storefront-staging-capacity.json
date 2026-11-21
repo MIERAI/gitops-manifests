@@ -1,0 +1,487 @@
+{
+ "summary": {
+  "app": "storefront",
+  "env": "staging",
+  "namespace": "storefront-staging",
+  "started": 1795300229.297777,
+  "knee_rps": 560,
+  "first_breaking_rps": 640,
+  "generator_limited": false,
+  "per_pod_rps": 280.0,
+  "pods": 2,
+  "workload": "web",
+  "recommended_rps": 392,
+  "headroom": 0.7,
+  "cpu_per_pod_at_knee": 0.6396742314254386,
+  "broke_on": "web-latency 0.9760 < 0.9900",
+  "bottleneck": [
+   "api: CPU 0.548 \u2192 0.425 cores (2 pods)",
+   "web: CPU 1.279 \u2192 0.841 cores (2 pods)",
+   "nodes: CPU 80.7% \u2192 59.7%"
+  ]
+ },
+ "config": {
+  "ramp": {
+   "start": 10,
+   "factor": 2.0,
+   "max": 2560,
+   "step": "90s",
+   "warmup": "30s",
+   "refine": 3,
+   "headroom": 0.7,
+   "step_s": 90,
+   "warmup_s": 30
+  },
+  "requests": [
+   {
+    "weight": 65,
+    "method": "GET",
+    "service": "web",
+    "port": 8080,
+    "path": "/"
+   },
+   {
+    "weight": 7,
+    "method": "POST",
+    "service": "web",
+    "port": 8080,
+    "path": "/orders",
+    "body": "{\"amount\": 1{rand}}",
+    "badBody": "{\"amount\": 0}",
+    "badRate": 0.05
+   },
+   {
+    "weight": 3,
+    "method": "GET",
+    "service": "web",
+    "port": 8080,
+    "path": "/products/old-link"
+   }
+  ],
+  "workloads": [
+   "web",
+   "api"
+  ],
+  "autoscaling": null
+ },
+ "slos": [
+  "web-availability",
+  "web-latency",
+  "api-availability",
+  "api-latency",
+  "order-intake"
+ ],
+ "steps": [
+  {
+   "rate": 10,
+   "start": 1795300230.45929,
+   "end": 1795300320.9052749,
+   "client": {
+    "rps": 10.001760254301093,
+    "reqs": 901,
+    "failed": 0.03995560488346282,
+    "dropped": null,
+    "p50": 74.4799,
+    "p95": 86.6336,
+    "p99": 94.3732,
+    "vus_max": 20
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 10.6,
+      "pods": 2,
+      "cpu": 0.009575506887326408,
+      "cpu_max_pod": 0.0054560215352405066
+     },
+     "api": {
+      "rps": 9.288888888888888,
+      "pods": 2,
+      "cpu": 0.004306550425439956,
+      "cpu_max_pod": 0.0041157783873811285
+     }
+    },
+    "node_cpu": 0.11819444444447291
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 20,
+   "start": 1795300344.388763,
+   "end": 1795300434.864303,
+   "client": {
+    "rps": 19.9948068124414,
+    "reqs": 1801,
+    "failed": 0.03775680177679067,
+    "dropped": null,
+    "p50": 72.1078,
+    "p95": 84.6606,
+    "p99": 120.2875,
+    "vus_max": 40
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 20.644444444444442,
+      "pods": 2,
+      "cpu": 0.01594016685971206,
+      "cpu_max_pod": 0.008114022473467476
+     },
+     "api": {
+      "rps": 18.088888888888885,
+      "pods": 2,
+      "cpu": 0.007360129977260327,
+      "cpu_max_pod": 0.007184886384367503
+     }
+    },
+    "node_cpu": 0.12924999999997666
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 40,
+   "start": 1795300458.325813,
+   "end": 1795300548.7822561,
+   "client": {
+    "rps": 39.98137620642262,
+    "reqs": 3601,
+    "failed": 0.05387392391002499,
+    "dropped": null,
+    "p50": 68.5227,
+    "p95": 83.9251,
+    "p99": 113.6888,
+    "vus_max": 80
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 40.511111111111106,
+      "pods": 2,
+      "cpu": 0.03205474474097447,
+      "cpu_max_pod": 0.018951289767841765
+     },
+     "api": {
+      "rps": 34.53333333333333,
+      "pods": 2,
+      "cpu": 0.013212234960193484,
+      "cpu_max_pod": 0.013035002845759792
+     }
+    },
+    "node_cpu": 0.12577777777773425
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 80,
+   "start": 1795300571.808393,
+   "end": 1795300662.2478452,
+   "client": {
+    "rps": 79.95625978429476,
+    "reqs": 7201,
+    "failed": 0.040827662824607695,
+    "dropped": null,
+    "p50": 66.7612,
+    "p95": 79.7371,
+    "p99": 90.4853,
+    "vus_max": 160
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 80.7111111111111,
+      "pods": 2,
+      "cpu": 0.05248581885218336,
+      "cpu_max_pod": 0.026825254428948307
+     },
+     "api": {
+      "rps": 69.66666666666666,
+      "pods": 2,
+      "cpu": 0.02121587403595608,
+      "cpu_max_pod": 0.010817648100817376
+     }
+    },
+    "node_cpu": 0.13325000000004372
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 160,
+   "start": 1795300685.4996579,
+   "end": 1795300775.969918,
+   "client": {
+    "rps": 159.87472127583638,
+    "reqs": 14401,
+    "failed": 0.046871745017707106,
+    "dropped": null,
+    "p50": 66.4972,
+    "p95": 77.8794,
+    "p99": 84.5359,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 160.64444444444445,
+      "pods": 2,
+      "cpu": 0.07143904422964698,
+      "cpu_max_pod": 0.0384084736556219
+     },
+     "api": {
+      "rps": 143.46666666666664,
+      "pods": 2,
+      "cpu": 0.02877032344407883,
+      "cpu_max_pod": 0.019135293701844858
+     }
+    },
+    "node_cpu": 0.1264722222222191
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 320,
+   "start": 1795300799.1954062,
+   "end": 1795300889.6500711,
+   "client": {
+    "rps": 319.7586941014963,
+    "reqs": 28800,
+    "failed": 0.04503472222222222,
+    "dropped": null,
+    "p50": 68.54175000000001,
+    "p95": 84.455345,
+    "p99": 121.510204,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 320.5111111111111,
+      "pods": 2,
+      "cpu": 0.2412622164171067,
+      "cpu_max_pod": 0.13640658056336913
+     },
+     "api": {
+      "rps": 275.08888888888885,
+      "pods": 2,
+      "cpu": 0.07985661472203981,
+      "cpu_max_pod": 0.059933977502163255
+     }
+    },
+    "node_cpu": 0.2360123544573881
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 640,
+   "start": 1795300913.054007,
+   "end": 1795301003.576152,
+   "client": {
+    "rps": 636.2076189623242,
+    "reqs": 57330,
+    "failed": 0.045037502180359325,
+    "dropped": 270,
+    "p50": 74.1252,
+    "p95": 291.97237499999886,
+    "p99": 883.9018629999994,
+    "vus_max": 468
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 0.9760080645161291,
+     "api-availability": 1.0,
+     "api-latency": 0.9999186231029011,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 635.1555555555555,
+      "pods": 2,
+      "cpu": 0.840654088403036,
+      "cpu_max_pod": 0.44940834288600884
+     },
+     "api": {
+      "rps": 546.1555555555555,
+      "pods": 2,
+      "cpu": 0.4245146649025341,
+      "cpu_max_pod": 0.2146728924317561
+     }
+    },
+    "node_cpu": 0.596972222222232
+   },
+   "verdict": "breaks",
+   "why": "web-latency 0.9760 < 0.9900"
+  },
+  {
+   "rate": 400,
+   "start": 1795301086.674878,
+   "end": 1795301177.1663208,
+   "client": {
+    "rps": 399.6327197584805,
+    "reqs": 36001,
+    "failed": 0.044748756978972806,
+    "dropped": null,
+    "p50": 70.7578,
+    "p95": 87.3999,
+    "p99": 113.9639,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 400.5333333333333,
+      "pods": 2,
+      "cpu": 0.37148362545872743,
+      "cpu_max_pod": 0.20808873526208604
+     },
+     "api": {
+      "rps": 340.1555555555555,
+      "pods": 2,
+      "cpu": 0.17172955713999194,
+      "cpu_max_pod": 0.0907379087788535
+     }
+    },
+    "node_cpu": 0.32272222222224334
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 480,
+   "start": 1795301200.521441,
+   "end": 1795301290.970537,
+   "client": {
+    "rps": 479.6125295638104,
+    "reqs": 43200,
+    "failed": 0.04567129629629629,
+    "dropped": null,
+    "p50": 79.21405,
+    "p95": 161.35084999999998,
+    "p99": 337.84778100000017,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 0.9991968477023164,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 481.9552789877618,
+      "pods": 2,
+      "cpu": 1.0486777799226328,
+      "cpu_max_pod": 0.5417844693804467
+     },
+     "api": {
+      "rps": 410.55555555555554,
+      "pods": 2,
+      "cpu": 0.4328498069423375,
+      "cpu_max_pod": 0.2252282638953327
+     }
+    },
+    "node_cpu": 0.771861111111078
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 560,
+   "start": 1795301314.3427699,
+   "end": 1795301404.813018,
+   "client": {
+    "rps": 558.8527532463145,
+    "reqs": 50337,
+    "failed": 0.044043149174563444,
+    "dropped": 63,
+    "p50": 79.3335,
+    "p95": 198.06635999999997,
+    "p99": 491.2480759999999,
+    "vus_max": 263
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 0.9923357495729258,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 555.1111111111111,
+      "pods": 2,
+      "cpu": 1.279348462850877,
+      "cpu_max_pod": 0.653162198609593
+     },
+     "api": {
+      "rps": 486.5777777777777,
+      "pods": 2,
+      "cpu": 0.5480123601342346,
+      "cpu_max_pod": 0.28522797555668744
+     }
+    },
+    "node_cpu": 0.8066944444444542
+   },
+   "verdict": "holds",
+   "why": ""
+  }
+ ],
+ "autoscaling": null
+}

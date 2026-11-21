@@ -1,0 +1,4 @@
+# The capacity tests' identity on the lab (lab only: clusters/lab/extras/platform-capacity.yaml): runner.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [runner.yaml]

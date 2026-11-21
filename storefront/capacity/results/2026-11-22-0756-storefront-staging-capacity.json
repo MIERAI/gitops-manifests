@@ -1,0 +1,436 @@
+{
+ "summary": {
+  "app": "storefront",
+  "env": "staging",
+  "namespace": "storefront-staging",
+  "started": 1795301798.1147616,
+  "knee_rps": 320,
+  "first_breaking_rps": 640,
+  "generator_limited": false,
+  "per_pod_rps": 160.0,
+  "pods": 2,
+  "workload": "web",
+  "recommended_rps": 224,
+  "headroom": 0.7,
+  "cpu_per_pod_at_knee": 0.1144620988817606,
+  "broke_on": "",
+  "bottleneck": [
+   "web: CPU 0.229 \u2192 1.103 cores (2 pods)",
+   "api: CPU 0.133 \u2192 0.560 cores (2 pods)",
+   "nodes: 1.67 \u2192 5.77 of 8 cores busy; outside the containers (host, kubelet, swapping) 0.49 \u2192 1.98",
+   "busiest other namespaces at the break: argocd 0.50, monitoring 0.46, api-factory-prod 0.30"
+  ],
+  "unstable": [
+   640
+  ]
+ },
+ "config": {
+  "ramp": {
+   "start": 80,
+   "factor": 2.0,
+   "max": 2560,
+   "step": "90s",
+   "warmup": "30s",
+   "refine": 3,
+   "confirm": 1,
+   "headroom": 0.7,
+   "step_s": 90,
+   "warmup_s": 30
+  },
+  "requests": [
+   {
+    "weight": 65,
+    "method": "GET",
+    "service": "web",
+    "port": 8080,
+    "path": "/"
+   },
+   {
+    "weight": 7,
+    "method": "POST",
+    "service": "web",
+    "port": 8080,
+    "path": "/orders",
+    "body": "{\"amount\": 1{rand}}",
+    "badBody": "{\"amount\": 0}",
+    "badRate": 0.05
+   },
+   {
+    "weight": 3,
+    "method": "GET",
+    "service": "web",
+    "port": 8080,
+    "path": "/products/old-link"
+   }
+  ],
+  "workloads": [
+   "web",
+   "api"
+  ],
+  "autoscaling": null
+ },
+ "slos": [
+  "web-availability",
+  "web-latency",
+  "api-availability",
+  "api-latency",
+  "order-intake"
+ ],
+ "steps": [
+  {
+   "rate": 80,
+   "start": 1795301802.930958,
+   "end": 1795301893.0932453,
+   "client": {
+    "rps": 79.9536231235249,
+    "reqs": 7201,
+    "failed": 0.043882794056381055,
+    "dropped": null,
+    "p50": 71.6796,
+    "p95": 85.7913,
+    "p99": 99.8022,
+    "vus_max": 160
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 80.77777777777777,
+      "pods": 2,
+      "cpu": 0.051629353737752195,
+      "cpu_max_pod": 0.02670468412653747
+     },
+     "api": {
+      "rps": 67.57777777777777,
+      "pods": 2,
+      "cpu": 0.01996099637233068,
+      "cpu_max_pod": 0.010238845366049399
+     }
+    },
+    "node_cpu": 0.1280277777778086,
+    "cores": 8.0,
+    "used_cores": 0.7886666666666626,
+    "host_cpu": 0.32389035820797796,
+    "neighbours": [
+     {
+      "namespace": "argocd",
+      "cpu": 0.07966048956713856
+     },
+     {
+      "namespace": "monitoring",
+      "cpu": 0.07669336347211596
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.06158884653170074
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 160,
+   "start": 1795301918.036989,
+   "end": 1795302008.216436,
+   "client": {
+    "rps": 159.8590389835376,
+    "reqs": 14401,
+    "failed": 0.043816401638775086,
+    "dropped": null,
+    "p50": 71.6108,
+    "p95": 84.9563,
+    "p99": 92.2245,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 160.73333333333332,
+      "pods": 2,
+      "cpu": 0.15829898144016577,
+      "cpu_max_pod": 0.08103612038673932
+     },
+     "api": {
+      "rps": 137.9714152389841,
+      "pods": 2,
+      "cpu": 0.057664703863923354,
+      "cpu_max_pod": 0.04332279897770317
+     }
+    },
+    "node_cpu": 0.2874722222222167,
+    "cores": 8.0,
+    "used_cores": 1.9748888888889178,
+    "host_cpu": 0.9690707053380871,
+    "neighbours": [
+     {
+      "namespace": "argocd",
+      "cpu": 0.26113704389013065
+     },
+     {
+      "namespace": "monitoring",
+      "cpu": 0.1405604176135756
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.09563338828114172
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 320,
+   "start": 1795302033.1390126,
+   "end": 1795302123.2991877,
+   "client": {
+    "rps": 319.76872073601595,
+    "reqs": 28801,
+    "failed": 0.044720669421200655,
+    "dropped": null,
+    "p50": 72.3774,
+    "p95": 88.5229,
+    "p99": 101.0911,
+    "vus_max": 200
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 320.66666666666663,
+      "pods": 2,
+      "cpu": 0.2289241977635212,
+      "cpu_max_pod": 0.13064749571917791
+     },
+     "api": {
+      "rps": 277.99497405053603,
+      "pods": 2,
+      "cpu": 0.1330178132431171,
+      "cpu_max_pod": 0.07031499042029447
+     }
+    },
+    "node_cpu": 0.238611111111095,
+    "cores": 8.0,
+    "used_cores": 1.6671111111111405,
+    "host_cpu": 0.48922135962348823,
+    "neighbours": [
+     {
+      "namespace": "monitoring",
+      "cpu": 0.21297976556750234
+     },
+     {
+      "namespace": "argocd",
+      "cpu": 0.1374566369223368
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.10973861079583551
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 640,
+   "start": 1795302147.8691158,
+   "end": 1795302238.0463426,
+   "client": {
+    "rps": 637.8662902351189,
+    "reqs": 57460,
+    "failed": 0.04528367560041768,
+    "dropped": 141,
+    "p50": 87.80260000000001,
+    "p95": 323.66859499999987,
+    "p99": 590.7876719999994,
+    "vus_max": 341
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 0.9945608702607582,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 641.2888888888888,
+      "pods": 2,
+      "cpu": 1.1030720705433166,
+      "cpu_max_pod": 0.5530935123178082
+     },
+     "api": {
+      "rps": 554.1555555555556,
+      "pods": 2,
+      "cpu": 0.5600978574819382,
+      "cpu_max_pod": 0.29514780972856747
+     }
+    },
+    "node_cpu": 0.7462781913120805,
+    "cores": 8.0,
+    "used_cores": 5.77291412065325,
+    "host_cpu": 1.980882646560712,
+    "neighbours": [
+     {
+      "namespace": "argocd",
+      "cpu": 0.4968315484530517
+     },
+     {
+      "namespace": "monitoring",
+      "cpu": 0.45738560848951365
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.30434107697625623
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "holds",
+   "why": ""
+  },
+  {
+   "rate": 1280,
+   "start": 1795302262.6570807,
+   "end": 1795302361.9560733,
+   "client": {
+    "rps": 525.8486495379498,
+    "reqs": 52141,
+    "failed": 0.25814618054889626,
+    "dropped": 63059,
+    "p50": 94.9246,
+    "p95": 9999.9989,
+    "p99": 10000.45276,
+    "vus_max": 2560
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 1.0,
+     "api-availability": 1.0,
+     "api-latency": 1.0,
+     "order-intake": 1.0
+    },
+    "workloads": {
+     "web": {
+      "rps": 36.49805111111111,
+      "pods": 0,
+      "cpu": 0,
+      "cpu_max_pod": null
+     },
+     "api": {
+      "rps": 219.17777777777775,
+      "pods": 2,
+      "cpu": 0.11103747296734244,
+      "cpu_max_pod": 0.05973527655229572
+     }
+    },
+    "node_cpu": 0.5416425840298854,
+    "cores": 8.0,
+    "used_cores": 4.0703361195091645,
+    "host_cpu": 2.5744802103646522,
+    "neighbours": [
+     {
+      "namespace": "argocd",
+      "cpu": 0.3857247523558265
+     },
+     {
+      "namespace": "monitoring",
+      "cpu": 0.34060095831872694
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.16441543445584658
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "limited",
+   "why": "k6 sent 525.8/s of 1280/s (63059 dropped)"
+  },
+  {
+   "rate": 640,
+   "start": 1795302386.5624857,
+   "end": 1795302485.9476845,
+   "client": {
+    "rps": 456.4733549828373,
+    "reqs": 45310,
+    "failed": 0.10893842418892077,
+    "dropped": 12290,
+    "p50": 87.21985000000001,
+    "p95": 4089.7948749999996,
+    "p99": 10000.38382,
+    "vus_max": 1280
+   },
+   "server": {
+    "slis": {
+     "web-availability": 1.0,
+     "web-latency": 0.9520890466204225,
+     "api-availability": 1.0,
+     "api-latency": 0.9996531390912243,
+     "order-intake": null
+    },
+    "workloads": {
+     "web": {
+      "rps": 103.31666666666669,
+      "pods": 0,
+      "cpu": 0.24955755833333335,
+      "cpu_max_pod": 0.24955755833333335
+     },
+     "api": {
+      "rps": 256.26666666666665,
+      "pods": 2,
+      "cpu": 0.3300104407833033,
+      "cpu_max_pod": 0.18897408647044617
+     }
+    },
+    "node_cpu": 0.6629444444444542,
+    "cores": 8.0,
+    "used_cores": 5.1557777777778,
+    "host_cpu": 2.437704660757658,
+    "neighbours": [
+     {
+      "namespace": "argocd",
+      "cpu": 0.7153171597061951
+     },
+     {
+      "namespace": "monitoring",
+      "cpu": 0.327644574830142
+     },
+     {
+      "namespace": "api-factory-prod",
+      "cpu": 0.28904164221038847
+     }
+    ],
+    "swap_out": 0.0
+   },
+   "verdict": "breaks",
+   "why": "web-latency 0.9521 < 0.9900"
+  }
+ ],
+ "autoscaling": null
+}
