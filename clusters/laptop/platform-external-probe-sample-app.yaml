@@ -1,0 +1,22 @@
+# laptop only: sample-app prod as its users reach it from outside (platform/external-probes/sample-app.yaml: the SLO chart's
+# values; the prober is xiaoxin's blackbox, platform/external-users), into its prod namespace
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-external-probe-sample-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/slo
+    helm:
+      releaseName: sample-app-external-probe
+      valueFiles: [../external-probes/sample-app.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-app-prod
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

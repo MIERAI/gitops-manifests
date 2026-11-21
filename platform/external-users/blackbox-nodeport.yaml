@@ -1,0 +1,9 @@
+# The lab's blackbox exporter (platform-blackbox), reachable from the laptop's Prometheus: the prober of its external
+# probe SLOs. It only probes what it is asked to (the module and the target come with each scrape).
+apiVersion: v1
+kind: Service
+metadata: { name: blackbox-external, namespace: monitoring }
+spec:
+  type: NodePort
+  selector: { app.kubernetes.io/instance: platform-blackbox, app.kubernetes.io/name: prometheus-blackbox-exporter }
+  ports: [{ name: http, port: 9115, targetPort: 9115, nodePort: 30115 }]

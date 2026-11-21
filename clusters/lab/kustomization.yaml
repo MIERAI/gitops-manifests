@@ -5,10 +5,12 @@
 # - Kyverno and its policies (~350 Mi): admission is not under test here. tofu/lab writes the GHCR pull secret into
 #   the private application's namespaces instead of Kyverno cloning it.
 # - Grafana (~200 Mi): results are files and slo_experiment_* metrics; Prometheus / Alertmanager are what is tested.
+# It is also the laptop's outside: its prod users and its external prober run here (platform/external-users).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../apps
+  - platform-external-users.yaml   # the laptop's prod users, from outside; the prober of its external probe SLOs
 patches:
   - target: { kind: Application, name: platform-kyverno }
     patch: |-

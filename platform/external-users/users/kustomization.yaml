@@ -1,0 +1,24 @@
+# platform/traffic (the same users and mix), pointed at the laptop's prod from outside, on the wall clock's day
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: external-users
+resources: [../../traffic]
+patches:
+  - target: { kind: Deployment, name: k6 }
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: { name: k6 }
+      spec:
+        template:
+          spec:
+            containers:
+              - name: k6
+                env:
+                  - { name: DAY_MINUTES, value: "1440" }     # a real day
+                  - { name: ALIGN_CLOCK, value: "1" }        # starting at the wall clock's hour (JST)
+                  - { name: DAYS, value: "2" }
+                  - { name: ENVS, value: "prod:1" }
+                  - { name: SAMPLE_APP_ENVS, value: prod }
+                  - { name: WEB_URL, value: "http://100.90.245.89:30084" }     # the laptop over Tailscale
+                  - { name: HELLO_URL, value: "http://100.90.245.89:30083" }

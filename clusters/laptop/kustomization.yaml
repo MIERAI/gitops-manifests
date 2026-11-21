@@ -5,6 +5,10 @@
 # - Alertmanager routes our prod alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
 #   inside one process
+# - prod's users are outside (platform/external-users on xiaoxin): the in-cluster traffic only calls dev and staging;
+#   external probe SLOs (platform/external-probes) see prod as those users do
+# - Alertmanager's Watchdog (always firing) goes to the phone every minute: the phone's watcher speaks (on xiaoxin)
+#   when it stops — the alerting itself is down (infrastructure-live ansible role gitops_watch)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -13,7 +17,26 @@ resources:
   - platform-offsite-backup.yaml
   - platform-offsite-backup-slo.yaml
   - platform-delivery-board.yaml
+  - platform-external-probe-storefront.yaml
+  - platform-external-probe-sample-app.yaml
 patches:
+  - target: { kind: Application, name: platform-traffic }
+    patch: |-
+      - op: add
+        path: /spec/source/kustomize
+        value:
+          patches:
+            - target: { kind: Deployment, name: k6 }
+              patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata: { name: k6 }
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: k6
+                          env: [{ name: ENVS, value: "staging:0.3,dev:0.3" }, { name: SAMPLE_APP_ENVS, value: dev }]
   # no fault injection on the laptop, ever: the scheduled experiment regression is a lab component (kind, demo)
   - target: { kind: Application, name: platform-experiments }
     patch: |-
@@ -39,6 +62,8 @@ patches:
             group_interval: 5m
             repeat_interval: 12h
             routes:
+              # the dead man's switch: Watchdog always fires; the phone notices when it stops arriving
+              - { receiver: phone-watch, matchers: ['alertname="Watchdog"'], group_wait: 0s, group_interval: 1m, repeat_interval: 1m }
               # only prod notifies (gitops-platform-blueprint docs/slo.md §4): dev / staging alerts stay visible in
               # Alertmanager and Grafana. Their low traffic and the fault experiments run there made every short fault
               # page twice (fast burn, then the 6h window after recovery).
@@ -55,6 +80,9 @@ patches:
               equal: [namespace, slo]
           receivers:
             - name: "null"
+            - name: phone-watch
+              webhook_configs:
+                - { url: "http://100.80.225.15:9195/watchdog", send_resolved: false }
             - name: speaker
               webhook_configs:
                 - { url: "http://alert-speaker.alert-speaker.svc:8080/", send_resolved: true }
