@@ -1,0 +1,8 @@
+# The platform's UIs, reachable without a port-forward (laptop and lab: clusters/<name>/platform-ui.yaml), one port each,
+# the same on every cluster: http://<machine>:<port>. Separate NodePort Services next to the charts' own (which stay
+# ClusterIP): no chart values to change. Reachable from the tailnet and the home LAN. Argo CD and Grafana ask for a
+# password; Prometheus, Alertmanager and Pyrra have none (anyone on those networks can read them and silence alerts).
+#   30085 Argo CD   30086 Grafana (laptop: platform/ui-laptop)   30087 Prometheus   30088 Alertmanager   30089 Pyrra
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [services.yaml]
