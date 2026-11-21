@@ -1,9 +1,19 @@
 # gitops-manifests
 
-> Part of the [GitOps Platform Blueprint](https://github.com/MIERAI/gitops-platform-blueprint)
+> A live instance of [slo-platform](https://github.com/MIERAI/slo-platform): its `platform.yaml`, the applications
+> and SLOs it runs, the experiments that verify the alerts, and the components only these clusters have. Clusters
+> bootstrapped by [infrastructure-live](https://github.com/MIERAI/infrastructure-live); principles and shared CI in the
+> [GitOps Platform Blueprint](https://github.com/MIERAI/gitops-platform-blueprint).
 
-The desired state of every workload, per environment. Argo CD (installed by
-[infrastructure-live](https://github.com/MIERAI/infrastructure-live)) watches this repository and keeps the cluster in sync.
+The desired state of every workload, per environment. The platform itself (Argo CD's root, monitoring, Pyrra burn-rate
+alerts, the experiment runner and daily regression…) comes from slo-platform at the version pinned in [`platform.yaml`](platform.yaml);
+what is ours lives here. Argo CD keeps two personal k3s clusters in sync with it:
+
+| Cluster | Where | Role |
+|---|---|---|
+| `laptop` | the always-on HP laptop | prod: synthetic traffic 24/7, pages read out by its speakers |
+| `lab` | xiaoxin | fault experiments and slo-platform's daily regression (09:00); notifies nobody |
+
 **Changing the cluster = committing here.**
 
 ## Run it yourself
@@ -21,8 +31,8 @@ commit, and build the demo cluster from your fork.
 <app>/<helm dir>/chart + values-<env>.yaml   a Helm component
 ```
 
-Everything else follows from `app.yaml`: the Argo CD Applications (`apps/applications.yaml`, an ApplicationSet: one per
-component × environment, namespace `<name>-<env>`), the namespace labels (admission policies, image signatures when
+Everything else follows from `app.yaml`: the Argo CD Applications (an ApplicationSet: one per component × environment,
+namespace `<name>-<env>`), the namespace labels (admission policies, image signatures when
 `signedImages`, the GHCR pull secret cloned by Kyverno), which file a promotion edits (`scripts/promote.sh`,
 `set-image.sh`), CI rendering (`scripts/render.py`) and the delivery board's pipelines. **Remove an application =
 remove its directory** (the workloads stay until their namespaces are deleted: the ApplicationSet preserves them).
@@ -31,8 +41,13 @@ Every application is registered this way: api-factory, sample-app, storefront.
 ## Layout
 
 ```
-apps/                      Argo CD Applications (app of apps): applications.yaml (every */app.yaml) + the platform
-clusters/demo|laptop/      per cluster: demo = apps/ without private applications; laptop = apps/ + its extras
+platform.yaml              the instance: product version, clusters (laptop, lab), notification targets, regression
+                           schedule, per-cluster overrides (slo-platform docs/configuration.md)
+*/app.yaml                 the applications (and their SLOs) slo-platform deploys
+experiments/               fault experiments (alerts must fire) and their results; the lab runs them daily
+clusters/laptop/extras/    what only the laptop has: speakers, delivery board, off-site backup to the phone, external
+                           probes, our Kyverno policies, host object storage, UIs on NodePorts 30085-30090
+clusters/lab/extras/       what only the lab has: in-cluster object storage, traffic, external users, UIs
 api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
 sample-app/base|overlays/  the public reference app
@@ -44,6 +59,11 @@ scripts/validate.sh        render + kubeconform + admission policies for every a
 scripts/alert-report.py    which alerts fired, would they notify, were they useful (monthly; experiments/README.md)
 reports/alerts/            its reports, one per cluster and month, and the human verdicts (labels.yaml)
 ```
+
+The old root (before slo-platform) is still here and still works: `apps/` (app of apps + ApplicationSet),
+`platform/*` and `clusters/<name>/kustomization.yaml`. For laptop and lab it is the **rollback path for one week**:
+`slo_platform = null` in infrastructure-live `tofu/laptop` or `tofu/lab` makes Argo CD sync it again. The demo
+(`clusters/demo`) and infrastructure-live's `tofu/kind` still render through it.
 
 ## Changes and who makes them
 
