@@ -1,13 +1,13 @@
 # Values of the platform's SLO chart (platform/slo): storefront prod as its users reach it — from another machine
-# (xiaoxin's blackbox, platform/external-users), over Tailscale, through the NodePort. The in-cluster probe
+# (winpc's blackbox_exporter, a Windows task: ENVIRONMENTS.md), over Tailscale, through the NodePort. The in-cluster probe
 # (web-probe) cannot see the laptop's network, Tailscale or the NodePort failing. Laptop only
 # (clusters/laptop/platform-external-probe-storefront.yaml), into storefront-prod: grouped and announced with storefront.
-# xiaoxin down = no probe result at all: "SLI absent", a ticket (the phone's watcher says which machine).
+# winpc down = no probe result at all: "SLI absent", a ticket (the phone's watcher says which machine).
 app: storefront
 env: prod
 slos:
   - name: web-external-probe
-    description: The page answered 2xx within 5s when called from xiaoxin over Tailscale (what a user outside the
+    description: The page answered 2xx within 5s when called from winpc over Tailscale (what a user outside the
       laptop gets). Burns when the laptop's network, Tailscale or the NodePort fails while the pods are fine.
     objective: 99.5
-    probe: { url: "http://100.90.245.89:30084/", prober: "100.76.236.114:30115" }
+    probe: { url: "http://100.90.245.89:30084/", prober: "100.106.140.35:9115" }
