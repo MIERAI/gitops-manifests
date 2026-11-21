@@ -1,0 +1,10 @@
+# The lab's own components (platform.yaml clusters.lab.extras): the laptop's users from outside and the external
+# prober (external-users), the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
+# synthetic traffic every environment gets (experiments need traffic).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - platform-external-users.yaml
+  - platform-ui.yaml
+  - platform-object-storage.yaml
+  - platform-traffic.yaml

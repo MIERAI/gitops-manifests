@@ -1,0 +1,20 @@
+# laptop only: alerts are read out loud by the laptop's speakd
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-alert-speaker
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "-1" }
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/alert-speaker
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: alert-speaker
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

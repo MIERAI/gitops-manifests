@@ -2,6 +2,7 @@
 name: sample-app
 repo: MIERAI/sample-app
 signedImages: true
+namespace: { labels: { gitops-platform/image-signatures: required } }   # our signature policy (Kyverno, extras)
 environments:
   - { name: dev, url: "http://100.90.245.89:30082" }
   - name: prod

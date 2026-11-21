@@ -1,0 +1,48 @@
+# This repository is an slo-platform instance (https://github.com/MIERAI/slo-platform, docs/configuration.md): the
+# platform itself comes from the product at product.version; what is ours is here — the applications (*/app.yaml at
+# the root), their experiments (experiments/), and the components only our clusters have (clusters/<name>/extras).
+apiVersion: slo-platform/v1
+product: { repo: https://github.com/MIERAI/slo-platform.git, version: v0.1.1 }   # upgrade = change the version
+instance: { repo: https://github.com/MIERAI/gitops-manifests.git, revision: main, apps: "." }
+timezone: Asia/Tokyo
+language: zh
+clusters:
+  laptop:                          # production: k3s on the always-on HP laptop (infrastructure-live tofu/laptop)
+    role: prod
+    runtime: k3s
+    objectStorage: none            # the object store is SeaweedFS on the host: extras (platform-object-storage)
+    extras: [{ name: laptop, path: clusters/laptop/extras }]
+    components:
+      monitoring:
+        values:
+          grafana:                 # the one Grafana: the lab's and the phone's Prometheus too (phone dashboards:
+            additionalDataSources: # infrastructure-live ansible role phone_dashboards use phone-prometheus)
+              - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
+              - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9090", jsonData: { timeInterval: 15s } }
+  lab:                             # the lab: k3s on xiaoxin (7 GB) — experiments and the daily regression run here
+    role: lab
+    runtime: k3s
+    objectStorage: none            # in-cluster SeaweedFS for the backup experiments: extras (platform-object-storage)
+    extras: [{ name: lab, path: clusters/lab/extras }]
+    components:
+      monitoring: { values: { grafana: { enabled: false } } }   # 7 GB: results are files and metrics, no Grafana here
+optional: { policies: false }      # our own Kyverno policies (GHCR pull secret clone, signatures): extras on the laptop
+applications:
+  namespaceLabels:                 # what our policies (platform/policies) select
+    gitops-platform/policies: enforced
+    gitops-platform/ghcr-pull: "true"
+components:
+  monitoring:
+    values:
+      prometheus:
+        prometheusSpec:            # the volume was created with 15Gi: a volume claim template cannot shrink
+          retentionSize: 12GB
+          storageSpec:
+            volumeClaimTemplate:
+              spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 15Gi } } }
+grafana: { adminSecret: grafana-admin }
+regression: { schedule: "0 9 * * *", experiments: experiments }
+notify:                            # prod only (the lab notifies nobody)
+  page:   [{ type: webhook, url: "http://alert-speaker.alert-speaker.svc:8080/" }]   # the laptop's speakers
+  ticket: [{ type: webhook, url: "http://alert-speaker.alert-speaker.svc:8080/" }]
+  deadman: { url: "http://100.80.225.15:9195/watchdog", interval: 1m }   # the phone's watcher (gitops_watch)

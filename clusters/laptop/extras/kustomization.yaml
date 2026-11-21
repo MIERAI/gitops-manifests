@@ -1,0 +1,43 @@
+# The laptop's own components (platform.yaml clusters.laptop.extras): everything slo-platform does not ship.
+# - speakers (alert-speaker: Alertmanager's page/ticket webhook, notify in platform.yaml), the delivery board (:30090),
+#   the off-site copy of the backups to the phone and its SLO, the external probe SLOs (prober on xiaoxin), the UIs on
+#   NodePorts 30085-30089
+# - our Kyverno policies (GHCR pull secret clone, image signatures, workload baseline): namespaces carry their labels
+#   (platform.yaml applications.namespaceLabels, app.yaml namespace.labels)
+# - the object store outside the cluster (SeaweedFS on the host) and the in-cluster synthetic traffic (dev / staging only:
+#   prod's users come from xiaoxin)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - platform-alert-speaker.yaml
+  - platform-delivery-board.yaml
+  - platform-offsite-backup.yaml
+  - platform-offsite-backup-slo.yaml
+  - platform-external-probe-storefront.yaml
+  - platform-external-probe-sample-app.yaml
+  - platform-ui.yaml
+  - platform-kyverno.yaml
+  - platform-policies.yaml
+  - platform-object-storage.yaml
+  - platform-traffic.yaml
+patches:
+  - target: { kind: Application, name: platform-object-storage }
+    patch: |-
+      - { op: replace, path: /spec/source/path, value: platform/object-storage-external }
+  - target: { kind: Application, name: platform-traffic }
+    patch: |-
+      - op: add
+        path: /spec/source/kustomize
+        value:
+          patches:
+            - target: { kind: Deployment, name: k6 }
+              patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata: { name: k6 }
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: k6
+                          env: [{ name: ENVS, value: "staging:0.3,dev:0.3" }, { name: SAMPLE_APP_ENVS, value: dev }]

@@ -7,6 +7,7 @@
 name: storefront
 repo: MIERAI/storefront          # its release workflows build the images and set them in dev
 signedImages: true               # images must be signed by the shared build workflow (public repository)
+namespace: { labels: { gitops-platform/image-signatures: required } }   # our signature policy (Kyverno, extras)
 environments:
   - name: dev
   - name: staging
