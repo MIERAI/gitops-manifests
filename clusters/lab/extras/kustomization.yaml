@@ -1,5 +1,4 @@
-# The lab's own components (platform.yaml clusters.lab.extras): the laptop's users from outside and the external
-# prober (external-users), the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
+# The lab's own components (platform.yaml clusters.lab.extras): the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
 # synthetic traffic every environment gets (experiments need traffic) — on a real day aligned to the clock (JST): with
 # a compressed day (one day per hour) the 1h burn windows spanned a whole day and night, so how fast an alert fired
 # depended on the phase a fault started in (api-slow-v3 rerun, 2026-11-21); the regression (09:00-17:00) now runs in
@@ -7,7 +6,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - platform-external-users.yaml
   - platform-ui.yaml
   - platform-object-storage.yaml
   - platform-traffic.yaml

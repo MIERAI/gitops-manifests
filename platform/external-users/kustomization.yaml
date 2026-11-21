@@ -1,4 +1,9 @@
-# The laptop's users, from outside (lab cluster only: clusters/lab). The prod environments of storefront and
+# RETIRED 2026-11-22: the laptop's users and the external prober moved to winpc, the consumer side (load tests,
+# users from outside, the prober), as Windows scheduled tasks ExternalUsers / ExternalProber (F:\external, same
+# traffic.js; ENVIRONMENTS.md). Kept only because the pre-slo-platform rollback directories (clusters/lab) still
+# reference it; remove together with them.
+#
+# Was: the laptop's users, from outside (lab cluster only: clusters/lab). The prod environments of storefront and
 # sample-app get their traffic from here, over the network a user would take (Tailscale → the laptop's NodePorts):
 # a real day (the night is the real night), not the compressed day the in-cluster traffic uses. And the prober the
 # laptop's external probe SLOs use (platform/slo/external): blackbox on xiaoxin, reachable at :30115.
