@@ -1,7 +1,7 @@
 """The scheduled regression: every fault experiment (experiments/*.yaml) on a lab cluster, like unit tests for alerting.
-Run daily on kind by platform/experiments (a CronJob); by hand:
+Run daily on the lab cluster (xiaoxin, clusters/lab) by platform/experiments (a CronJob); by hand:
 
-  python3 scripts/experiment-regression.py --cluster kind [--kubeconfig F] [--record NS/CONFIGMAP] [--only a,b] [--dry-run]
+  python3 scripts/experiment-regression.py --cluster lab|kind [--kubeconfig F] [--record NS/CONFIGMAP] [--only a,b] [--dry-run]
 
 Waves: one queue per namespace, the queues in parallel (they share nothing but the "no other page" judgement, which
 the namespace marks of scripts/experiment.py handle). Within a namespace one experiment after the other: the
@@ -16,7 +16,8 @@ such and not counted as pass or fail.
 
 Not run, and said so: experiments with `skip: <reason>` (cannot run on our lab, e.g. HTTPChaos on kind), with
 `clusters: [...]` not listing --cluster, or whose namespace does not exist on this cluster (demo: no private apps).
---cluster kind refuses to start unless every node is a kind node: faults never reach another cluster by mistake.
+--cluster refuses to start unless every node is a lab node (kind: providerID kind://; lab: label gitops-platform/lab=true):
+faults never reach another cluster (the laptop) by mistake.
 
 Exit 0 when every experiment was judged (failed experiments are results: --record and the metrics carry them);
 exit 1 when the regression itself broke. --record keeps per experiment the last run (<name>.json, written by
@@ -44,13 +45,29 @@ def say(msg):
         print(f"{datetime.datetime.now():%H:%M:%S} [regression] {msg}", flush=True)
 
 
+LAB_LABEL = "gitops-platform/lab"
+
+
+def is_lab(cluster, nodes):
+    """Every node says it belongs to that lab: kind = providerID kind://...; lab = the label gitops-platform/lab=true
+    (set by infrastructure-live ansible group_vars/lab.yml on xiaoxin; the laptop, a k3s node too, never has it)."""
+    if not nodes:
+        return False
+    if cluster == "kind":
+        return all(n["spec"].get("providerID", "").startswith("kind://") for n in nodes)
+    if cluster == "lab":
+        return all((n["metadata"].get("labels") or {}).get(LAB_LABEL) == "true" for n in nodes)
+    return False
+
+
 def guard(cluster):
-    """Faults only on the lab: every node must say it is one (kind: providerID kind://...)."""
+    """Faults only on the lab: refuse to start unless every node says it is one."""
     nodes = json.loads(kubectl("get", "nodes", "-o", "json"))["items"]
-    ids = [n["spec"].get("providerID", "") for n in nodes]
-    if cluster == "kind" and nodes and all(i.startswith("kind://") for i in ids):
+    if is_lab(cluster, nodes):
         return
-    sys.exit(f"refusing to inject faults: --cluster {cluster}, but the nodes say {ids or 'nothing'}")
+    seen = [(n["metadata"]["name"], n["spec"].get("providerID", ""), (n["metadata"].get("labels") or {}).get(LAB_LABEL))
+            for n in nodes]
+    sys.exit(f"refusing to inject faults: --cluster {cluster}, but the nodes say {seen or 'nothing'}")
 
 
 def plan(files, cluster, only):
@@ -186,7 +203,7 @@ class Regression:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--cluster", required=True, choices=["kind"], help="the lab cluster this runs on (checked against the nodes)")
+    p.add_argument("--cluster", required=True, choices=["kind", "lab"], help="the lab cluster this runs on (checked against the nodes)")
     p.add_argument("--kubeconfig")
     p.add_argument("--record", metavar="NS/CONFIGMAP")
     p.add_argument("--gap", default="45m", help="a namespace stays marked this long after each experiment")

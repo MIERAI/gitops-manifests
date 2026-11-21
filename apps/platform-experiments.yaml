@@ -1,7 +1,8 @@
 # The scheduled fault-experiment regression (platform/experiments): every experiment of experiments/ daily, results as
-# metrics (slo_experiment_*), a ticket when it fails or stops running. Lab clusters only — kind and the demo cluster
-# (clusters/demo: platform/experiments-demo). clusters/laptop deletes this Application: no faults there, ever (and
-# the runner refuses to start on a node that is not kind).
+# metrics (slo_experiment_*), a ticket when it fails or stops running. Lab clusters only — the lab (clusters/lab:
+# platform/experiments-lab, xiaoxin, always on), kind and the demo cluster (clusters/demo: platform/experiments-demo).
+# clusters/laptop deletes this Application: no faults there, ever (and the runner refuses to start on a node that is
+# not a lab node).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

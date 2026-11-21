@@ -1,4 +1,4 @@
-# The scheduled fault-experiment regression (lab clusters only: kind, the demo cluster; clusters/laptop removes it).
+# The scheduled fault-experiment regression (lab clusters only: the lab, kind, the demo cluster; clusters/laptop removes it).
 # Every experiment of experiments/ runs daily (cronjob.yaml), its result becomes metrics (exporter.yaml:
 # slo_experiment_*), and a ticket says when it fails or stops running (rules.yaml). Runner rights: rbac.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1

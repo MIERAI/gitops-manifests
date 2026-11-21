@@ -4,7 +4,7 @@ that verify its page, pages and tickets — and the gaps (gitops-platform-bluepr
 
   uv run -q --with pyyaml python3 scripts/scorecard.py -o reports/scorecard/$(date +%F).md
 
-Read-only: Prometheus queries through the API server's service proxy (laptop: budgets and ALERTS; kind, optional:
+Read-only: Prometheus queries through the API server's service proxy (laptop: budgets and ALERTS; the lab, optional:
 the scheduled regression's slo_experiment_* metrics), this repository's files, and the blueprint's docs/runbook.md.
 
 SLOs        what platform/slo renders (scripts/render.py: every app.yaml's `slos` per environment, and the platform's
@@ -15,7 +15,7 @@ Budget      Pyrra's pyrra_availability / pyrra_objective (labels app, env, slo):
 Runbook     the anchor the chart puts in pyrra.dev/runbook (slo.runbook, else "latency" / "error-budget-burn"), checked
             against the headings of docs/runbook.md.
 Verified by experiments/*.yaml without `skip:` whose expect.fire names the SLO (label slo), with the newest result
-            from experiments/results/*.md and from kind's slo_experiment_last_status / _last_run_timestamp_seconds.
+            from experiments/results/*.md and from the lab's slo_experiment_last_status / _last_run_timestamp_seconds.
 Pages       ALERTS{alertstate="firing"} with a slo label in the SLO's namespace, per severity; firing runs less than
             --gap apart are one episode (the 1h and 6h windows of one burn count once). Not whether anyone was
             notified: that is scripts/alert-report.py's job.
@@ -443,14 +443,14 @@ def fetch_alert_series(prom, start, end, step):
 
 
 def fetch_lab(prom):
-    """kind's scheduled regression: [{experiment, verdict, t, pass_t, source}]."""
+    """the lab's scheduled regression: [{experiment, verdict, t, pass_t, source}]."""
     status = {r["metric"]["experiment"]: r["metric"].get("status", "?").upper()
               for r in prom.query("slo_experiment_last_status == 1")}
     ran = {r["metric"]["experiment"]: float(r["value"][1]) for r in prom.query("slo_experiment_last_run_timestamp_seconds")}
     ok = {r["metric"]["experiment"]: float(r["value"][1]) for r in prom.query("slo_experiment_last_success_timestamp_seconds")}
     out = []
     for name, t in ran.items():
-        out.append({"experiment": name, "verdict": status.get(name, "?"), "t": t, "pass_t": ok.get(name), "source": "kind"})
+        out.append({"experiment": name, "verdict": status.get(name, "?"), "t": t, "pass_t": ok.get(name), "source": "lab"})
     return out
 
 
@@ -486,8 +486,8 @@ def build(rows, *, budgets, anchors, specs, results, lab, episodes, other, now, 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--kubeconfig", default="~/.kube/laptop-lan.yaml", help="the cluster whose prod SLOs are scored")
-    p.add_argument("--lab-kubeconfig", default="~/.kube/kind-gitops.yaml",
-                   help="kind (scheduled regression's slo_experiment_* metrics); '' to skip; unreachable = skipped")
+    p.add_argument("--lab-kubeconfig", default="~/.kube/xiaoxin.yaml",
+                   help="the lab cluster (scheduled regression's slo_experiment_* metrics); '' to skip; unreachable = skipped")
     p.add_argument("--env", default="prod")
     p.add_argument("--runbook", help="docs/runbook.md: a file or URL (default: ../gitops-platform-blueprint, else GitHub)")
     p.add_argument("--stale", default="7d", help="a last pass older than this is a gap")
@@ -514,7 +514,7 @@ def main(argv=None):
     if coverage < WINDOW - 3600:
         warnings.append(f"Prometheus holds data only from {dt.datetime.fromtimestamp(tsdb, tz):%Y-%m-%d %H:%M} "
                         f"({fmt_age(now - tsdb)}): budgets and alert counts cover that, not 28 days.")
-    lab, lab_src = [], "kind not read (--lab-kubeconfig '')"
+    lab, lab_src = [], "lab not read (--lab-kubeconfig '')"
     with cf.ThreadPoolExecutor(4) as pool:
         f_b = pool.submit(fetch_budgets, prom)
         f_s = pool.submit(fetch_alert_series, prom, start, now, a.step)
@@ -525,10 +525,10 @@ def main(argv=None):
         if f_l:
             try:
                 lab = f_l.result()
-                lab_src = f"kind's slo_experiment_* metrics ({len(lab)} experiments)"
+                lab_src = f"the lab's slo_experiment_* metrics ({len(lab)} experiments)"
             except RuntimeError as e:
-                lab_src = "kind unreachable"
-                warnings.append(f"kind not read ({str(e)[:120]}): results files only.")
+                lab_src = "lab unreachable"
+                warnings.append(f"lab not read ({str(e)[:120]}): results files only.")
     episodes = episodes_by_slo(series, ar.dur(a.gap))
     other = {}
     for labels, runs in series:

@@ -1,0 +1,19 @@
+# platform/experiments for the lab cluster (clusters/lab points the Application here): the regression checks the
+# nodes for the lab label (--cluster lab) instead of kind's providerID.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../experiments]
+patches:
+  - target: { kind: CronJob, name: experiment-regression }
+    patch: |-
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata: { name: experiment-regression, namespace: slo-experiments }
+      spec:
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: regression
+                    env: [{ name: CLUSTER, value: lab }]
