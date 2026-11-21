@@ -6,7 +6,7 @@
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
 #   inside one process
 # - prod's users are outside (platform/external-users on xiaoxin): the in-cluster traffic only calls dev and staging;
-#   external probe SLOs (platform/external-probes) see prod as those users do
+#   external probe SLOs (platform/slo/external) see prod as those users do
 # - Alertmanager's Watchdog (always firing) goes to the phone every minute: the phone's watcher speaks (on xiaoxin)
 #   when it stops — the alerting itself is down (infrastructure-live ansible role gitops_watch)
 apiVersion: kustomize.config.k8s.io/v1beta1

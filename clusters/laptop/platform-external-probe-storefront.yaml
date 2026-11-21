@@ -1,5 +1,4 @@
-# laptop only: storefront prod as its users reach it from outside (platform/external-probes/storefront.yaml: the SLO chart's
-# values; the prober is xiaoxin's blackbox, platform/external-users), into its prod namespace
+# laptop only: storefront prod as its users reach it from outside (values: platform/slo/external/storefront.yaml; the prober is xiaoxin's blackbox, platform/external-users), into its prod namespace
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,7 +12,7 @@ spec:
     path: platform/slo
     helm:
       releaseName: storefront-external-probe
-      valueFiles: [../external-probes/storefront.yaml]
+      valueFiles: [external/storefront.yaml]
   destination:
     server: https://kubernetes.default.svc
     namespace: storefront-prod

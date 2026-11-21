@@ -1,7 +1,7 @@
 # Values of the platform's SLO chart (platform/slo): storefront prod as its users reach it — from another machine
 # (xiaoxin's blackbox, platform/external-users), over Tailscale, through the NodePort. The in-cluster probe
 # (web-probe) cannot see the laptop's network, Tailscale or the NodePort failing. Laptop only
-# (clusters/laptop/platform-external-probes.yaml), into storefront-prod: grouped and announced with storefront.
+# (clusters/laptop/platform-external-probe-storefront.yaml), into storefront-prod: grouped and announced with storefront.
 # xiaoxin down = no probe result at all: "SLI absent", a ticket (the phone's watcher says which machine).
 app: storefront
 env: prod
