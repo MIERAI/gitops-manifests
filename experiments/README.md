@@ -20,6 +20,7 @@ uv run --with pyyaml python3 scripts/experiment.py --kubeconfig ~/.kube/kind-git
 | api-down | every api pod fails | web availability pages; api "SLI absent" ticket |
 | sample-app-down | every sample-app pod fails | sample-app availability pages |
 | quiet-traffic | none: 2h of normal traffic | nothing pages (the negative test) |
+| quiet-traffic-day | none: 4.5h of a real day from 09:00, through the 12:00 burst (sample-app-prod) | nothing pages |
 | api-factory-one-pod-down | one of two API pods fails 10 min | nothing pages |
 | api-factory-db-slow | Postgres → API packets +200ms (NetworkChaos, on the Postgres side: the API uses a ClusterIP) | rpc-latency pages; rpc-availability and health-probe quiet |
 | api-factory-db-partition | API ↮ Postgres partition (NetworkChaos) | health-probe pages (predicted: rpc-availability does not, readiness hides the failures) |

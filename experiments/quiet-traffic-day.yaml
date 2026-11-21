@@ -1,0 +1,12 @@
+hypothesis: >-
+  A real working day's traffic — the morning ramp, the lunch peak and its burst at 12:00 (3× the peak for a minute),
+  5% client errors — pages nobody in sample-app-prod. The negative test on the real-day traffic (the lab's k6 follows
+  the clock since 2026-11-21): quiet-traffic, 2h from 09:00, no longer reaches a burst. Started by the 09:00 regression
+  (the only experiment in this namespace), its 4.5h hold spans 12:00.
+namespace: sample-app-prod
+ignore: '.+-(dev|staging)'   # only prod notifies (laptop routing): dev / staging pages are not noise anyone hears
+fault: []
+timeout: 4h30m
+hold: 4h30m
+expect:
+  fire: []
