@@ -1,0 +1,20 @@
+# S3-compatible object storage for database backups (stand-in for GCS on GKE)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-object-storage
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "-2" }
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/object-storage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: object-storage
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

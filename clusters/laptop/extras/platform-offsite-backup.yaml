@@ -1,0 +1,18 @@
+# laptop only: hourly encrypted copy of the object store (database backups) to the phone
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-offsite-backup
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/offsite-backup
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backup-offsite      # created by infrastructure-live (holds the secret)
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
