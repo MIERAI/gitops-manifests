@@ -46,6 +46,7 @@ PY
 
 echo "• experiment runner"   # scripts/experiment.py: judgement (fire / quiet / may_fire), fault deadlines
 python3 -I scripts/test_experiment.py
+python3 -I scripts/test_experiment_regression.py   # the lab guard: faults never start on the laptop
 
 echo "• alert report"   # scripts/alert-report.py on synthetic fixtures (episodes, routing, classification)
 python3 -I scripts/test_alert_report.py

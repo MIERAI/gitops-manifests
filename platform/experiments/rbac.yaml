@@ -1,5 +1,5 @@
 # The runner's rights, nothing more (scripts/experiment.py, experiment-regression.py):
-#   read namespaces (marks, which exist) and nodes (the "is this kind?" guard)       cluster-wide, read-only
+#   read namespaces (marks, which exist) and nodes (the "is this a lab?" guard)      cluster-wide, read-only
 #   annotate the experiments' namespaces (lock, cooldown)                             only those, by name
 #   create / read / delete Chaos Mesh PodChaos and NetworkChaos                       only in those namespaces
 #   create / read / delete Jobs (an experiment's `load`, e.g. backup writes)          only in api-factory-dev

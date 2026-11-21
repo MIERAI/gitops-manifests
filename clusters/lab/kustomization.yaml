@@ -1,0 +1,31 @@
+# The lab cluster (k3s on xiaoxin, always on, infrastructure-live tofu/lab): where the fault experiments and their daily
+# regression run (platform/experiments) — the laptop never gets a fault. Every node carries gitops-platform/lab=true
+# (ansible group_vars/lab.yml); the regression refuses to start without it (--cluster lab).
+# The same applications and SLOs as everywhere, but 7 GB for everything, so what the experiments do not need is out:
+# - Kyverno and its policies (~350 Mi): admission is not under test here. tofu/lab writes the GHCR pull secret into
+#   the private application's namespaces instead of Kyverno cloning it.
+# - Grafana (~200 Mi): results are files and slo_experiment_* metrics; Prometheus / Alertmanager are what is tested.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../apps
+patches:
+  - target: { kind: Application, name: platform-kyverno }
+    patch: |-
+      $patch: delete
+      kind: Application
+      metadata: { name: any }
+  - target: { kind: Application, name: platform-policies }
+    patch: |-
+      $patch: delete
+      kind: Application
+      metadata: { name: any }
+  - target: { kind: Application, name: platform-chaos-mesh }
+    patch: |-
+      - { op: replace, path: /spec/source/helm/valuesObject/chaosDaemon/socketPath, value: /run/k3s/containerd/containerd.sock }
+  - target: { kind: Application, name: platform-monitoring }
+    patch: |-
+      - { op: add, path: /spec/source/helm/valuesObject/grafana/enabled, value: false }
+  - target: { kind: Application, name: platform-experiments }
+    patch: |-
+      - { op: replace, path: /spec/source/path, value: platform/experiments-lab }
