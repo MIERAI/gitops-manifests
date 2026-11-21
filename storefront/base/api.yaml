@@ -23,8 +23,13 @@ spec:
           # stuck process: 5s x 6 (2 min) before a restart.
           readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5, timeoutSeconds: 3 }
           livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 6 }
+          # 50m request = its share when the node is busy (the kernel divides contended 50m by requests). At 5m a
+          # neighbour burst (Argo CD, k3s, Prometheus) starved it: the capacity test (2026-11-22, lab) broke web-latency
+          # at 640 req/s with the node 75% busy, web far below a core. Sized from that run: web ~0.11 cores/pod at
+          # 320 req/s, api about half. No 50m limit: bursts may use idle 50m. Memory is the cliff, not 50m (64Mi:
+          # OOMKilled at 1280 req/s) - see the capacity report.
           resources:
-            requests: { cpu: 5m, memory: 16Mi }
+            requests: { cpu: 50m, memory: 16Mi }
             limits: { memory: 64Mi }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
 ---
