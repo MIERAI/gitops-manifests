@@ -41,7 +41,9 @@ components:
             volumeClaimTemplate:
               spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 15Gi } } }
 grafana: { adminSecret: grafana-admin }
-regression: { schedule: "0 9 * * *", experiments: experiments }
+# PAUSED 2026-11-22: the factory comes first (owner's call) — Feb 31 never comes, so the daily regression does not run;
+# restore "0 9 * * *" to resume. (The lab's SLOExperimentRegressionStale ticket fires meanwhile; the lab notifies nobody.)
+regression: { schedule: "0 9 31 2 *", experiments: experiments }
 notify:                            # prod only (the lab notifies nobody)
   page:   [{ type: webhook, url: "http://alert-speaker.alert-speaker.svc:8080/" }]   # the laptop's speakers
   ticket: [{ type: webhook, url: "http://alert-speaker.alert-speaker.svc:8080/" }]
