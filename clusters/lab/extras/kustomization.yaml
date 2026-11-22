@@ -1,36 +1,11 @@
-# The lab's own components (platform.yaml clusters.lab.extras): the capacity tests' identity (platform-capacity), the sync window during the regression (platform-sync-window), the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
-# synthetic traffic every environment gets (experiments need traffic) — on a real day aligned to the clock (JST): with
-# a compressed day (one day per hour) the 1h burn windows spanned a whole day and night, so how fast an alert fired
-# depended on the phase a fault started in (api-slow-v3 rerun, 2026-11-21); the regression (09:00-17:00) now runs in
-# daytime traffic, the same every day.
+# The lab's own components (platform.yaml clusters.lab.extras): the capacity tests' identity (platform-capacity), the
+# sync window during the regression (platform-sync-window), the UIs on NodePorts and the in-cluster object store (the
+# backup experiments need it). The synthetic traffic (platform-traffic: storefront v1 and sample-app, paused since
+# 2026-11-22) left with storefront v1 on 2026-11-23; applications bring their own with app.yaml traffic.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - platform-ui.yaml
   - platform-object-storage.yaml
-  - platform-traffic.yaml
   - platform-capacity.yaml
   - platform-sync-window.yaml
-patches:
-  - target: { kind: Application, name: platform-traffic }
-    patch: |-
-      - op: add
-        path: /spec/source/kustomize
-        value:
-          patches:
-            - target: { kind: Deployment, name: k6 }
-              patch: |-
-                apiVersion: apps/v1
-                kind: Deployment
-                metadata: { name: k6 }
-                spec:
-                  replicas: 0   # PAUSED 2026-11-22 with the daily regression (platform.yaml): no experiments, no traffic needed
-                  template:
-                    spec:
-                      containers:
-                        - name: k6
-                          env:
-                            - { name: DAY_MINUTES, value: "1440" }   # a real day
-                            - { name: ALIGN_CLOCK, value: "1" }      # night is the real night (TZ_OFFSET_HOURS 9: JST)
-                            - { name: TZ_OFFSET_HOURS, value: "9" }
-                            - { name: DAYS, value: "2" }             # then the pod restarts, aligned again
