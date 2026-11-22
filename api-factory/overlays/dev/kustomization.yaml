@@ -18,6 +18,6 @@ patches:
         value: { name: SEED, value: demo }
 images:
   - name: ghcr.io/mierai/api-factory
-    newTag: "47d6898"
+    newTag: "8215b46"
   - name: ghcr.io/mierai/api-factory-schema
-    newTag: "47d6898"
+    newTag: "8215b46"
