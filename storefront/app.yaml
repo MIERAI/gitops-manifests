@@ -73,7 +73,8 @@ slos:
       errors: { metric: orders_overdue_total, matchers: 'app="web"' }
       total: { metric: orders_created_total, matchers: 'app="web"' }
 # Capacity tests (slo-platform scripts/capacity.py, docs/capacity.md): run from winpc (~/workspace/gitops/bin/loadtest.sh,
-# lab only, never 09:00-17:00: the regression). The request mix is the production one (the lab's traffic, extras).
+# lab only, never 09:00-17:00: the regression). The request mix is the production one. Since 2026-11-23 storefront v1
+# no longer runs on the lab (platform.yaml clusters.lab.applications): no capacity target there until v2.
 capacity:
   slos: [web-availability, web-latency, api-availability, api-latency, order-intake]
   workloads: [web, api]
