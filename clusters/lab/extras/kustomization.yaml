@@ -24,6 +24,7 @@ patches:
                 kind: Deployment
                 metadata: { name: k6 }
                 spec:
+                  replicas: 0   # PAUSED 2026-11-22 with the daily regression (platform.yaml): no experiments, no traffic needed
                   template:
                     spec:
                       containers:
