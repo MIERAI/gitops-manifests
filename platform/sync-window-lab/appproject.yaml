@@ -1,0 +1,27 @@
+# The lab's Argo CD project "default" (every Application of the platform is in it), taken over only to add a sync
+# window: the applications are not synced automatically while the daily regression runs (09:00, ~8-9 h, JST). A merge
+# to an application's main releases to dev on both clusters; on the lab that used to restart pods in the middle of a
+# fault experiment, so merges were held until 17:00. Now the lab simply catches up after the window; the laptop is
+# unaffected. Manual sync stays allowed (an emergency, or a deliberate test).
+#
+# The rest of the spec is Argo CD's own default (everything allowed), unchanged. Prune=false: if this file is ever
+# removed, Argo CD must not delete the project every Application belongs to.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  sourceRepos: ["*"]
+  destinations: [{ namespace: "*", server: "*" }]
+  clusterResourceWhitelist: [{ group: "*", kind: "*" }]
+  syncWindows:
+    - kind: deny
+      schedule: "0 9 * * *"
+      duration: 9h
+      timeZone: Asia/Tokyo
+      applications: ["api-factory-*", "storefront-*", "sample-app-*"]
+      manualSync: true
+      description: the daily regression (platform.yaml regression.schedule) runs on these applications' namespaces

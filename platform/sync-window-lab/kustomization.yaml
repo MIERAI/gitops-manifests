@@ -1,0 +1,4 @@
+# The lab's sync window (lab only: clusters/lab/extras/platform-sync-window.yaml): appproject.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [appproject.yaml]

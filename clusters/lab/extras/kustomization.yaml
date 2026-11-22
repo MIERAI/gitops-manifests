@@ -1,4 +1,4 @@
-# The lab's own components (platform.yaml clusters.lab.extras): the capacity tests' identity (platform-capacity), the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
+# The lab's own components (platform.yaml clusters.lab.extras): the capacity tests' identity (platform-capacity), the sync window during the regression (platform-sync-window), the UIs on NodePorts, the in-cluster object store (the backup experiments need it) and the
 # synthetic traffic every environment gets (experiments need traffic) — on a real day aligned to the clock (JST): with
 # a compressed day (one day per hour) the 1h burn windows spanned a whole day and night, so how fast an alert fired
 # depended on the phase a fault started in (api-slow-v3 rerun, 2026-11-21); the regression (09:00-17:00) now runs in
@@ -10,6 +10,7 @@ resources:
   - platform-object-storage.yaml
   - platform-traffic.yaml
   - platform-capacity.yaml
+  - platform-sync-window.yaml
 patches:
   - target: { kind: Application, name: platform-traffic }
     patch: |-
