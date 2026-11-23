@@ -2,3 +2,7 @@
 image:
   repository: ghcr.io/mierai/storefront-worker
   tag: "aff0c9f"
+# traces (MIERAI/storefront#7): OTLP/HTTP to Tempo on the phone; exported in the background, dropped when unreachable
+extraEnv:
+  - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+  - { name: OTEL_RESOURCE_ATTRIBUTES, value: "deployment.environment.name=dev,k8s.namespace.name=storefront-dev" }
