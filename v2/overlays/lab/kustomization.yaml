@@ -11,7 +11,7 @@ images:
   - name: ghcr.io/mierai/storefront-inventory
     newTag: "7f296d2"
   - name: ghcr.io/mierai/storefront-payment
-    newTag: "43542ad"
+    newTag: "c91363e"
   - name: ghcr.io/mierai/storefront-notification
     newTag: "7f296d2"
   - name: ghcr.io/mierai/storefront-order
