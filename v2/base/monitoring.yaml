@@ -1,0 +1,29 @@
+# Scrape the five services (:9090, api-factory-runtime: rpc_requests_total, rpc_request_duration_seconds,
+# factory_messages_total, factory_outbox_*, factory_dlq_messages, factory_sm_*), Postgres (CNPG :9187) and RabbitMQ
+# (rabbitmq_prometheus :15692, per queue). The pod label `app` tells the services apart (the SLOs in v2/app.yaml select
+# on it).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: services }
+spec:
+  selector: { matchLabels: { storefront-v2/role: service } }
+  podTargetLabels: [app]
+  podMetricsEndpoints:
+    - { port: metrics, path: /metrics, interval: 15s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: postgres }
+spec:
+  selector: { matchLabels: { cnpg.io/cluster: postgres } }
+  podMetricsEndpoints:
+    - { port: metrics, interval: 30s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: rabbitmq }
+spec:
+  selector: { matchLabels: { app: rabbitmq } }
+  podTargetLabels: [app]
+  podMetricsEndpoints:
+    - { port: prometheus, path: /metrics, interval: 30s }

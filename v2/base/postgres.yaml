@@ -1,0 +1,155 @@
+# One CloudNativePG cluster for the five services (lab memory: one instance ≈ 50 MB instead of five), one database and
+# one role per service (design §4.3: data ownership — a service only ever gets its own credentials):
+#   catalog, inventory, payment, notification, orders (order's database and role: `order` is an SQL keyword)
+# Credentials are TLS client certificates, not passwords: each DatabaseRole has the operator issue a certificate signed
+# by the cluster's client CA into Secret <role>-client-cert (tls.crt, tls.key), and pg_hba lets role X log in to
+# database X only with its certificate (hostssl X X all cert). A service mounts its own Secret and the server CA
+# (postgres-ca, key ca.crt only): sslmode=verify-full. Nothing secret is in this public repository and nothing has to
+# be copied between namespaces (the lab has no secret operator).
+#
+# The bootstrap database `app` (owner `app`, Secret postgres-app) holds nothing and its role cannot log in (pg_hba
+# reject): postgres-app's random password is only used as RabbitMQ's password (rabbitmq.yaml) — the lab's only source
+# of a generated secret without an operator.
+#
+# No backups (lab, 2026-11-23): the data is test data re-created by the e2e driver / load tests. Add an ObjectStore +
+# ScheduledBackup like catalog's (catalog/base/postgres.yaml) before anything here must survive a lost volume.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10
+  storage: { size: 2Gi }
+  smartShutdownTimeout: 10      # connection pools never disconnect by themselves (api-factory: 197s → 10s)
+  postgresql:
+    # five services × (pool + relay + consumers + scanner); max_connections bounds memory too
+    parameters: { shared_buffers: 32MB, max_connections: "100", work_mem: 2MB }
+    pg_hba:
+      - hostssl catalog catalog all cert
+      - hostssl inventory inventory all cert
+      - hostssl payment payment all cert
+      - hostssl notification notification all cert
+      - hostssl orders orders all cert
+      - host all app all reject
+  resources:
+    requests: { cpu: 50m, memory: 112Mi }
+    limits: { memory: 384Mi }
+  bootstrap:
+    initdb: { database: app, owner: app }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: catalog
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: catalog
+  login: true
+  disablePassword: true          # certificate only (pg_hba: hostssl catalog catalog all cert)
+  connectionLimit: 30
+  clientCertificate: { enabled: true }   # → Secret catalog-client-cert, mounted by catalog only
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: catalog
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: catalog
+  owner: catalog                    # catalog's migrations create its tables as the owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: inventory
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: inventory
+  login: true
+  disablePassword: true          # certificate only (pg_hba: hostssl inventory inventory all cert)
+  connectionLimit: 30
+  clientCertificate: { enabled: true }   # → Secret inventory-client-cert, mounted by inventory only
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: inventory
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: inventory
+  owner: inventory                    # inventory's migrations create its tables as the owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: payment
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: payment
+  login: true
+  disablePassword: true          # certificate only (pg_hba: hostssl payment payment all cert)
+  connectionLimit: 30
+  clientCertificate: { enabled: true }   # → Secret payment-client-cert, mounted by payment only
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: payment
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: payment
+  owner: payment                    # payment's migrations create its tables as the owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: notification
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: notification
+  login: true
+  disablePassword: true          # certificate only (pg_hba: hostssl notification notification all cert)
+  connectionLimit: 30
+  clientCertificate: { enabled: true }   # → Secret notification-client-cert, mounted by notification only
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: notification
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: notification
+  owner: notification                    # notification's migrations create its tables as the owner
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: orders
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: orders
+  login: true
+  disablePassword: true          # certificate only (pg_hba: hostssl orders orders all cert)
+  connectionLimit: 30
+  clientCertificate: { enabled: true }   # → Secret orders-client-cert, mounted by order only
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: orders
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  cluster: { name: postgres }
+  name: orders
+  owner: orders                    # order's migrations create its tables as the owner

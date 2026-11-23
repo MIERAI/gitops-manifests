@@ -1,0 +1,71 @@
+# Who may talk to whom in v2-lab (k3s enforces NetworkPolicies). Ingress is denied by default; allowed is what the saga
+# needs (the services talk only through RabbitMQ, never to each other's API or database) plus monitoring:
+#   services :8080   pods of this namespace (smoke tests, the load generator's Jobs) and the monitoring namespace
+#   services :9090   the monitoring namespace (Prometheus)
+#   rabbitmq :5672   the five services and the topology Job; :15692 monitoring
+#   postgres :5432   the five services (each logs in to its own database only: certificates + pg_hba, postgres.yaml);
+#            :8000 / :9187  the CNPG operator (cnpg-system) / monitoring
+# Egress of the services: DNS, RabbitMQ and Postgres only.
+# kubectl port-forward (the e2e driver, the operator) enters the pod directly: not subject to these policies.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: services }
+spec:
+  podSelector: { matchLabels: { storefront-v2/role: service } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: http }]
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: metrics }]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    - to: [{ podSelector: { matchLabels: { app: rabbitmq } } }]
+      ports: [{ port: 5672 }]
+    - to: [{ podSelector: { matchLabels: { cnpg.io/cluster: postgres } } }]
+      ports: [{ port: 5432 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: rabbitmq }
+spec:
+  podSelector: { matchLabels: { app: rabbitmq } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { storefront-v2/role: service } }
+        - podSelector: { matchLabels: { app: topology } }
+      ports: [{ port: 5672 }]
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 15692 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: postgres }
+spec:
+  podSelector: { matchLabels: { cnpg.io/cluster: postgres } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { storefront-v2/role: service } }
+      ports: [{ port: 5432 }]
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cnpg-system } }
+      ports: [{ port: 8000 }, { port: 5432 }]
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 9187 }]

@@ -1,0 +1,36 @@
+# The system's messaging topology before any service starts (api-factory GAPS G23: an event sent before its
+# subscriber's first start already has a queue): ghcr.io/mierai/storefront-topology = api-factory-runtime's
+# `factory-runtime topology apply` with contracts/topology.json (every queue, binding, retry queue and DLQ of the five
+# services) baked in (MIERAI/storefront topology/Dockerfile, release-topology). A Sync hook in wave 1: it runs after
+# RabbitMQ is ready, on every sync (idempotent: declaring what exists changes nothing), and the services (wave 2) wait
+# for it. The services still declare their own queues at start-up.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: topology
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata: { labels: { app: topology } }
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: topology
+          image: ghcr.io/mierai/storefront-topology
+          args: [topology, apply, --file, /topology.json, --timeout, 120s]
+          env:
+            - name: AMQP_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
+            - { name: AMQP_URL, value: "amqp://v2:$(AMQP_PASSWORD)@rabbitmq:5672/v2-lab" }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
