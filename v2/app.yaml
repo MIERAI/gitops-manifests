@@ -29,8 +29,10 @@ services:
 #   - <service>-messages: each service's share of the saga — a message handled (ok, business result, duplicate) and
 #     not dead-lettered (dlq: retries exhausted, poison). retry is not bad by itself (transient, retried).
 #   - browse-*: catalog's read RPCs, as the application catalog's.
-# The consistency SLO (every accepted order reaches CONFIRMED or CANCELLED in time, stock and payments agree) comes in a
-# follow-up from its own work: section name `consistency-*` reserved.
+#   - consistency-*: every accepted order reaches a final state (CONFIRMED or CANCELLED) in time — design §0's
+#     "all orders final within 5 minutes" as an SLO, from order's state-machine metrics. That stock and payments agree
+#     (no oversell, no double charge) is held by the databases (CHECK available >= 0, payments keyed by order) and
+#     proven by storefront scripts/m6 (check.py) in the M6 experiments, not by a metric that could only ever be 1.
 slos:
   - name: place-order-availability
     description: PlaceOrder answered without a server error, as counted by order itself (rpc_requests_total). An order
@@ -75,3 +77,20 @@ slos:
       metric: rpc_requests_total
       matchers: 'app="catalog", procedure=~"/catalog.catalog.v1.CatalogService/(ListProducts|GetProduct)"'
       errors: 'code=~"internal|unavailable|unknown|deadline_exceeded|data_loss"'
+  - name: consistency-final-5m
+    description: An order reaches CONFIRMED or CANCELLED within 5 minutes of being placed (factory_sm_completion_seconds,
+      created → final, observed by order's saga when the order finishes). Normally about a second; an inventory or
+      payment outage makes the orders of the outage finish late once it is over — design §0 allows 5 minutes after the
+      recovery, this SLO counts from creation, so a 10-minute outage spends budget. Blind to orders that never finish
+      (consistency-none-stuck sees those).
+    objective: 99
+    latency:
+      metric: factory_sm_completion_seconds
+      matchers: 'app="order", machine="OrderSaga"'
+      threshold: "300"
+  - name: consistency-none-stuck
+    description: No order has waited 5 minutes or more in one saga state (RESERVING, CHARGING, CONFIRMING, RELEASING),
+      from the timeout scanner's oldest-in-state gauge (recording rule storefront:order_saga_none_stuck_5m:bool,
+      v2/base/consistency.yaml). Bad while one waits — e.g. CHARGING with payment down, which by design has no deadline.
+    objective: 99
+    bool: { metric: "storefront:order_saga_none_stuck_5m:bool" }

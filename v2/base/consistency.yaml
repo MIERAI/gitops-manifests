@@ -1,0 +1,16 @@
+# The consistency SLO's second half (v2/app.yaml consistency-none-stuck): the order saga's oldest order in a waiting
+# state (RESERVING / CHARGING / CONFIRMING / RELEASING), from api-factory-runtime's timeout scanner
+# (factory_sm_oldest_in_state_seconds, refreshed every round; 0 when none waits). 1 = no order has waited 5 minutes or
+# more in one state. The latency half (consistency-final-5m) only sees orders that DID finish; an order stuck in
+# CHARGING (no deadline there by design: an unknown charge is never undone automatically) never finishes, and only
+# this rule sees it. max over the order pods (the scanner may run in every replica). Absent while no order pod runs:
+# the SLO's "SLI absent" ticket.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: { name: consistency }
+spec:
+  groups:
+    - name: storefront-v2.consistency
+      rules:
+        - record: storefront:order_saga_none_stuck_5m:bool
+          expr: max by (namespace) (factory_sm_oldest_in_state_seconds{app="order", machine="OrderSaga"}) < bool 300
