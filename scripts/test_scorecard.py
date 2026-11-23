@@ -66,7 +66,11 @@ class Declarations(unittest.TestCase):
             rows = sc.slo_rows(sc.select_instances(sc.load_instances(sc.ROOT), "prod"), sc.chart_defaults(sc.ROOT))
         apps = {r["app"] for r in rows}
         self.assertTrue({"sample-app", "storefront", "api-factory"} <= apps, apps)
-        self.assertTrue(all(r["env"] == "prod" for r in rows if r["app"] != "platform"))
+        # apps with a prod environment: only prod rows; an app not in prod yet (catalog, dev only until S1 is
+        # promoted) is scored on what it has (select_instances)
+        with_prod = {r["app"] for r in rows if r["env"] == "prod"}
+        self.assertTrue(all(r["env"] == "prod" for r in rows if r["app"] in with_prod))
+        self.assertTrue({"sample-app", "storefront", "api-factory"} <= with_prod, with_prod)
         self.assertTrue(all(r["kind"] != "?" for r in rows))
 
 
