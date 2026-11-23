@@ -1,0 +1,10 @@
+# Log shipping: Grafana Alloy (one replica: single-node clusters) tails every pod's logs through the API server and
+# pushes them to Loki on the phone (ENVIRONMENTS.md 4.7). The overlays (platform/log-shipping-lab, -laptop) set CLUSTER.
+# Grafana (laptop) reads them through the Loki datasource (platform.yaml clusters.laptop.components.logging).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: log-shipping
+resources: [rbac.yaml, alloy.yaml]
+configMapGenerator:
+  - name: alloy
+    files: [config.alloy]
