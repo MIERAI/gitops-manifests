@@ -23,7 +23,7 @@ rules:
   - { apiGroups: [""], resources: [nodes], verbs: [get, list] }
   - apiGroups: [""]
     resources: [namespaces]
-    resourceNames: [sample-app-dev]   # storefront v1 left the lab 2026-11-23 (platform.yaml clusters.lab.applications)
+    resourceNames: [sample-app-dev, v2-lab]   # storefront v1 left the lab 2026-11-23; v2-lab: storefront v2 (M6 flash sale)
     verbs: [get, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -43,6 +43,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: { name: capacity-runner, namespace: sample-app-dev }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner-target }
+subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: capacity-runner, namespace: v2-lab }   # storefront v2's M6 flash-sale test (storefront docs/m6-verification.md)
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: capacity-runner-target }
 subjects: [{ kind: ServiceAccount, name: capacity-runner, namespace: slo-experiments }]
 ---
