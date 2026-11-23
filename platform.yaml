@@ -21,6 +21,19 @@ clusters:
       logging: { enabled: true, external: { queryUrl: "http://100.80.225.15:3100", endpoint: "http://100.80.225.15:3100/loki/api/v1/push" } }
       monitoring:
         values:
+          # Long-term copy on the phone (~/promlt), as on the lab: small queue read from the WAL in the background (the
+          # phone down never blocks scraping or rules; unsent samples dropped after ~2 h); cluster=laptop on the copy
+          # only; the API server's and control plane's internals not sent.
+          prometheus:
+            prometheusSpec:
+              remoteWrite:
+                - url: http://100.80.225.15:9091/api/v1/write
+                  remoteTimeout: 30s
+                  queueConfig: { capacity: 2500, maxShards: 2, minShards: 1, maxSamplesPerSend: 1000, batchSendDeadline: 10s, minBackoff: 1s, maxBackoff: 1m }
+                  writeRelabelConfigs:
+                    - { action: drop, sourceLabels: [job], regex: apiserver }
+                    - { action: drop, sourceLabels: [__name__], regex: "(workqueue|scheduler|kine|storage_operation|kubelet_runtime_operations|rest_client|cnpg_pg_settings)_.*" }
+                    - { action: replace, targetLabel: cluster, replacement: laptop }
           grafana:                 # the one Grafana: the lab's and the phone's Prometheus too (phone dashboards:
             additionalDataSources: # infrastructure-live ansible role phone_dashboards use phone-prometheus)
               - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
