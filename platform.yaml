@@ -2,7 +2,7 @@
 # platform itself comes from the product at product.version; what is ours is here — the applications (*/app.yaml at
 # the root), their experiments (experiments/), and the components only our clusters have (clusters/<name>/extras).
 apiVersion: slo-platform/v1
-product: { repo: https://github.com/MIERAI/slo-platform.git, version: v0.1.3 }   # upgrade = change the version
+product: { repo: https://github.com/MIERAI/slo-platform.git, version: v0.1.4 }   # upgrade = change the version
 instance: { repo: https://github.com/MIERAI/gitops-manifests.git, revision: main, apps: "." }
 timezone: Asia/Tokyo
 language: zh
