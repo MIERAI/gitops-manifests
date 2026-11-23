@@ -9,6 +9,13 @@ patches:
     patch: |-
       - { op: add, path: /spec/type, value: NodePort }
       - { op: add, path: /spec/ports/0/nodePort, value: 30084 }
+  # storefront v2 step S1: prod browses through catalog (application catalog, namespace catalog-prod; its
+  # NetworkPolicy admits web of storefront-prod). Rollback = revert this patch: web goes back to v1's api.
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CATALOG_URL, value: "http://catalog.catalog-prod.svc:8080" }
 images:
   - name: ghcr.io/mierai/storefront-web
     newTag: "ccab018"
