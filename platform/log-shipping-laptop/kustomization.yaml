@@ -8,3 +8,10 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/env/1/value
         value: laptop
+      # the lab's 1h soak peaked at 153Mi working set (limit 192Mi); the laptop has ~2x the pods: more headroom
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: 220MiB
