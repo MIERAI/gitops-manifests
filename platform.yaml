@@ -25,6 +25,8 @@ clusters:
             additionalDataSources: # infrastructure-live ansible role phone_dashboards use phone-prometheus)
               - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
               - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9090", jsonData: { timeInterval: 15s } }
+              # the long-term store on the phone (a second Prometheus, 1 y / 150 GB): the clusters remote_write there
+              - { name: "Prometheus · long-term (phone)", uid: longterm-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9091", jsonData: { timeInterval: 15s } }
   lab:                             # the lab: k3s on xiaoxin (7 GB) — experiments and the daily regression run here
     role: lab
     runtime: k3s
@@ -47,6 +49,21 @@ clusters:
       monitoring:
         values:
           grafana: { enabled: false }   # 7 GB: results are files and metrics, no Grafana here
+          # Long-term copy on the phone (~/promlt: 1 y / 150 GB): remote_write with a small queue. Prometheus reads it
+          # from its WAL in the background — the phone down never blocks scraping or rules; after ~2 h (the WAL) the
+          # unsent samples are dropped. Label cluster=lab on the copy only. Not sent: the API server's and the
+          # control plane's internals (job apiserver ~35k of ~68k series; workqueue / scheduler / kine / storage /
+          # runtime histograms; CNPG settings) — causes for a live look, not for a year.
+          prometheus:
+            prometheusSpec:
+              remoteWrite:
+                - url: http://100.80.225.15:9091/api/v1/write
+                  remoteTimeout: 30s
+                  queueConfig: { capacity: 2500, maxShards: 2, minShards: 1, maxSamplesPerSend: 1000, batchSendDeadline: 10s, minBackoff: 1s, maxBackoff: 1m }
+                  writeRelabelConfigs:
+                    - { action: drop, sourceLabels: [job], regex: apiserver }
+                    - { action: drop, sourceLabels: [__name__], regex: "(workqueue|scheduler|kine|storage_operation|kubelet_runtime_operations|rest_client|cnpg_pg_settings)_.*" }
+                    - { action: replace, targetLabel: cluster, replacement: lab }
           # The lab's dead man's switch, like the laptop's notify.deadman (which the product applies to prod only:
           # a lab notifies nobody): Watchdog → the phone's watcher every minute (gitops_watch check lab-watchdog);
           # every other alert still goes to "null". Merged over the platform's config: route.routes is added,
