@@ -5,6 +5,6 @@ namespace: storefront-dev
 resources: [../../base]
 images:
   - name: ghcr.io/mierai/storefront-web
-    newTag: "aff0c9f"
+    newTag: "ccab018"
   - name: ghcr.io/mierai/storefront-api
     newTag: "aff0c9f"
