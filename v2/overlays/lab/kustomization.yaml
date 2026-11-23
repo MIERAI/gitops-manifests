@@ -7,7 +7,7 @@ namespace: v2-lab
 resources: [../../base]
 images:
   - name: ghcr.io/mierai/storefront-catalog
-    newTag: "3182342"
+    newTag: "d654994"
   - name: ghcr.io/mierai/storefront-inventory
     newTag: "d654994"
   - name: ghcr.io/mierai/storefront-payment
