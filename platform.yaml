@@ -17,6 +17,8 @@ clusters:
       # traces: Tempo on the phone (outside production's request path: phone down = fewer traces, prod unaffected).
       # Grafana gets a Tempo datasource; the services that export set OTLP themselves (storefront-dev only, for now).
       tracing: { enabled: true, external: { queryUrl: "http://100.80.225.15:3200", endpoint: "http://100.80.225.15:4318" } }
+      # logs: Loki on the phone (same reasoning); the collectors are extras (platform/log-shipping, lab first)
+      logging: { enabled: true, external: { queryUrl: "http://100.80.225.15:3100", endpoint: "http://100.80.225.15:3100/loki/api/v1/push" } }
       monitoring:
         values:
           grafana:                 # the one Grafana: the lab's and the phone's Prometheus too (phone dashboards:
