@@ -17,4 +17,4 @@ images:
   - name: ghcr.io/mierai/storefront-order
     newTag: "7f296d2"
   - name: ghcr.io/mierai/storefront-topology
-    newTag: "7f296d2"
+    newTag: "c91363e"
