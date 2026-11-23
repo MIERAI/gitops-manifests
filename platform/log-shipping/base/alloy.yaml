@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy
+  labels: { app: alloy }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }      # one tailer at a time: two would ship every line twice
+  selector: { matchLabels: { app: alloy } }
+  template:
+    metadata: { labels: { app: alloy } }
+    spec:
+      serviceAccountName: alloy
+      securityContext: { runAsNonRoot: true, runAsUser: 473, runAsGroup: 473, fsGroup: 473, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: alloy
+          image: mirror.gcr.io/grafana/alloy:v1.22.0   # Docker Hub's grafana/alloy through Google's cache
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --storage.path=/var/lib/alloy/data
+            - --server.http.listen-addr=0.0.0.0:12345
+            - --stability.level=generally-available
+            - --disable-reporting
+          env:
+            - { name: LOKI_URL, value: "http://100.80.225.15:3100/loki/api/v1/push" }   # the phone (tailnet)
+            - { name: CLUSTER, value: "set-by-overlay" }
+            - { name: GOMEMLIMIT, value: "160MiB" }
+          ports: [{ containerPort: 12345, name: http-metrics }]
+          readinessProbe: { httpGet: { path: /-/ready, port: http-metrics }, periodSeconds: 10, timeoutSeconds: 3 }
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 192Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: config, mountPath: /etc/alloy, readOnly: true }
+            - { name: data, mountPath: /var/lib/alloy/data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: config, configMap: { name: alloy } }
+        - { name: data, emptyDir: { sizeLimit: 256Mi } }   # positions; a restart re-reads at most the recent lines
+        - { name: tmp, emptyDir: {} }
+---
+# Alloy's own metrics (loki_write_* sent / dropped entries) in the cluster's Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: alloy }
+spec:
+  selector: { matchLabels: { app: alloy } }
+  podMetricsEndpoints: [{ port: http-metrics, interval: 30s }]

@@ -1,0 +1,50 @@
+// Every pod's logs on this cluster → Loki on the phone (the independent third party: it observes production, it is
+// not in its request path). Read through the Kubernetes API (loki.source.kubernetes): no hostPath, no root.
+// Phone unreachable: loki.write retries a batch 6 times with backoff (≤30 s apart), then drops it; meanwhile the
+// sources wait (they keep their position) — memory stays bounded and workloads never notice.
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.relabel "pods" {
+  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    regex         = "Pending|Succeeded|Failed|Unknown"
+    action        = "drop"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label  = "app"
+  }
+}
+
+loki.source.kubernetes "pods" {
+  targets    = discovery.relabel.pods.output
+  forward_to = [loki.write.phone.receiver]
+}
+
+loki.write "phone" {
+  endpoint {
+    url                 = sys.env("LOKI_URL")
+    batch_size          = "512KiB"
+    batch_wait          = "5s"
+    remote_timeout      = "10s"
+    min_backoff_period  = "1s"
+    max_backoff_period  = "30s"
+    max_backoff_retries = 6
+  }
+  external_labels = { cluster = sys.env("CLUSTER") }
+}

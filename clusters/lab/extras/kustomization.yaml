@@ -9,3 +9,4 @@ resources:
   - platform-object-storage.yaml
   - platform-capacity.yaml
   - platform-sync-window.yaml
+  - platform-log-shipping.yaml   # pod logs → Loki on the phone
