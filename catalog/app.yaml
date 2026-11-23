@@ -5,14 +5,17 @@
 # (design §4), and clusters choose applications (platform.yaml clusters.<name>.applications) — the lab runs v2 without
 # v1. Namespaces catalog-<env>; web (storefront-<env>) calls it at http://catalog.catalog-<env>.svc:8080.
 #
-# Environments: dev only for now (laptop and lab). staging / prod come with the promotion of S1 (the owner's call):
-# add them here together with overlays/<env> — the steps are in the storefront design doc §14 (M2).
+# Environments: dev and staging (laptop and lab: slo-platform creates every environment on both clusters). prod comes
+# later (the owner's call): add it here together with overlays/prod and backup-s3 for catalog-prod
+# (infrastructure-live backup_namespaces) — the steps are in the storefront design doc §14.1 (M2).
 name: catalog
 repo: MIERAI/storefront          # its release workflow release-catalog builds the image and sets it in dev
 signedImages: true               # signed by the shared build workflow (public repository)
 namespace: { labels: { gitops-platform/image-signatures: required } }   # our signature policy (Kyverno, laptop)
 environments:
   - name: dev
+  - name: staging
+    promotion: { from: dev, soak: 5m }
 components:
   - { name: catalog, kustomize: overlays }   # overlays/<env>/kustomization.yaml: Postgres + the service
 services:
