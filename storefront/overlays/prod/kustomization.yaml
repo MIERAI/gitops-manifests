@@ -11,6 +11,6 @@ patches:
       - { op: add, path: /spec/ports/0/nodePort, value: 30084 }
 images:
   - name: ghcr.io/mierai/storefront-web
-    newTag: "b9e57e4"
+    newTag: "ccab018"
   - name: ghcr.io/mierai/storefront-api
     newTag: "b9e57e4"
