@@ -3,6 +3,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: storefront-staging
 resources: [../../base]
+patches:
+  # storefront v2 step S1: staging browses through catalog (application catalog, namespace catalog-staging; its
+  # NetworkPolicy admits web of storefront-staging). Rollback = revert this patch: web goes back to v1's api.
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CATALOG_URL, value: "http://catalog.catalog-staging.svc:8080" }
 images:
   - name: ghcr.io/mierai/storefront-web
     newTag: "ccab018"
