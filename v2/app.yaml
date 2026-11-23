@@ -87,7 +87,7 @@ slos:
     latency:
       metric: factory_sm_completion_seconds
       matchers: 'app="order", machine="OrderSaga"'
-      threshold: "300"
+      threshold: "300.0"   # Prometheus 3 writes integer bucket edges as le="300.0" (le="300" matches nothing)
   - name: consistency-none-stuck
     description: No order has waited 5 minutes or more in one saga state (RESERVING, CHARGING, CONFIRMING, RELEASING),
       from the timeout scanner's oldest-in-state gauge (recording rule storefront:order_saga_none_stuck_5m:bool,

@@ -2,7 +2,11 @@
 # one user `v2` for all five services (per-service users: later, with a secret operator). Its password is the random one
 # CNPG generated into Secret postgres-app (postgres.yaml says why; that Postgres role cannot log in).
 # Durable queues on a volume: a broker restart keeps the queues and the messages in them.
-# Memory: high watermark 160 MiB absolute (publishers are blocked above it, the services' outboxes keep the messages);
+# Memory: high watermark 300 MiB absolute (publishers are blocked above it, the services' outboxes keep the messages).
+# It was 160 MiB: the idle node (66 queues, management + prometheus plugins) sits at ~145–165 MiB, so under 1–2 orders/s
+# the alarm went on and off ~40 times in 90 min (M6, 2026-11-23); order's relay waited 10 s for confirms, ended its
+# leader term, and half of the orders only moved on with the saga's 30 s resend (journey: 73% within 60 s).
+# The request follows what it really uses (~145 MiB); the limit (384 Mi) stays above the watermark plus Erlang's overhead.
 # Erlang schedulers limited to 2 (the node has 8 cores; one per core costs memory and idle CPU on a small lab).
 # Metrics: rabbitmq_prometheus on :15692, per queue (prometheus.return_per_object_metrics: ~40 queues incl. retry/DLQ).
 apiVersion: v1
@@ -12,7 +16,7 @@ data:
   enabled_plugins: |
     [rabbitmq_management,rabbitmq_prometheus].
   20-lab.conf: |
-    vm_memory_high_watermark.absolute = 160MiB
+    vm_memory_high_watermark.absolute = 300MiB
     disk_free_limit.absolute = 256MB
     prometheus.return_per_object_metrics = true
     management.rates_mode = none
@@ -69,7 +73,7 @@ spec:
           readinessProbe: { tcpSocket: { port: amqp }, periodSeconds: 5, initialDelaySeconds: 5 }
           livenessProbe: { tcpSocket: { port: amqp }, periodSeconds: 20, initialDelaySeconds: 60, failureThreshold: 6 }
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
+            requests: { cpu: 50m, memory: 160Mi }
             limits: { memory: 384Mi }
           securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
       volumes:
