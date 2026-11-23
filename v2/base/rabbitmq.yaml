@@ -50,8 +50,19 @@ spec:
   template:
     metadata: { labels: { app: rabbitmq } }
     spec:
-      securityContext: { runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999, seccompProfile: { type: RuntimeDefault } }
+      securityContext: { runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999, fsGroupChangePolicy: OnRootMismatch, seccompProfile: { type: RuntimeDefault } }
       terminationGracePeriodSeconds: 30
+      # The Erlang cookie on the volume must be 0600: the fsGroup pass that kubelet runs on the volume made it group
+      # readable, and the first restart (M6, 2026-11-23) crash-looped ("Cookie file … must be accessible by owner only").
+      # OnRootMismatch skips that pass when the volume's root already has the group; this puts the file right whatever
+      # happened before.
+      initContainers:
+        - name: cookie
+          image: mirror.gcr.io/library/rabbitmq:3.13.7-management
+          command: ["sh", "-c", "[ ! -f /var/lib/rabbitmq/.erlang.cookie ] || chmod 600 /var/lib/rabbitmq/.erlang.cookie"]
+          volumeMounts: [{ name: data, mountPath: /var/lib/rabbitmq }]
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { memory: 64Mi } }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
       containers:
         - name: rabbitmq
           image: mirror.gcr.io/library/rabbitmq:3.13.7-management   # Docker Hub's official image through Google's cache
