@@ -5,9 +5,9 @@
 # (design §4), and clusters choose applications (platform.yaml clusters.<name>.applications) — the lab runs v2 without
 # v1. Namespaces catalog-<env>; web (storefront-<env>) calls it at http://catalog.catalog-<env>.svc:8080.
 #
-# Environments: dev and staging (laptop and lab: slo-platform creates every environment on both clusters). prod comes
-# later (the owner's call): add it here together with overlays/prod and backup-s3 for catalog-prod
-# (infrastructure-live backup_namespaces) — the steps are in the storefront design doc §14.1 (M2).
+# Environments: dev, staging and prod (laptop and lab: slo-platform creates every environment on both clusters). Each
+# backs up under its own prefix (overlays/<env>) with backup-s3 from infrastructure-live backup_namespaces — the steps
+# are in the storefront design doc §14.1 (M2). web reaches prod's catalog only once storefront-prod sets CATALOG_URL.
 name: catalog
 repo: MIERAI/storefront          # its release workflow release-catalog builds the image and sets it in dev
 signedImages: true               # signed by the shared build workflow (public repository)
@@ -16,6 +16,8 @@ environments:
   - name: dev
   - name: staging
     promotion: { from: dev, soak: 5m }
+  - name: prod
+    promotion: { from: staging, soak: 10m }
 components:
   - { name: catalog, kustomize: overlays }   # overlays/<env>/kustomization.yaml: Postgres + the service
 services:

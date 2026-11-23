@@ -1,0 +1,20 @@
+# prod: the promote workflow (delivery board) moves the image tag here from staging after the soak
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: catalog-prod
+resources: [../../base]
+patches:
+  # backups of each environment under their own prefix in the bucket
+  - target: { kind: ObjectStore, name: backups }
+    patch: |-
+      - op: replace
+        path: /spec/configuration/destinationPath
+        value: s3://cnpg/catalog-prod
+  - target: { kind: NetworkPolicy, name: catalog }   # web of the same environment
+    patch: |-
+      - op: replace
+        path: /spec/ingress/0/from/0/namespaceSelector/matchLabels/slo-platform~1env
+        value: prod
+images:
+  - name: ghcr.io/mierai/storefront-catalog
+    newTag: "3182342"
