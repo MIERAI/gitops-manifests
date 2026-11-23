@@ -4,6 +4,12 @@ kind: Kustomization
 namespace: catalog-dev
 resources: [../../base]
 patches:
+  # backups of each environment under their own prefix in the bucket
+  - target: { kind: ObjectStore, name: backups }
+    patch: |-
+      - op: replace
+        path: /spec/configuration/destinationPath
+        value: s3://cnpg/catalog-dev
   - target: { kind: NetworkPolicy, name: catalog }   # web of the same environment
     patch: |-
       - op: replace
