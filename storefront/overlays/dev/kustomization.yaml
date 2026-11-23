@@ -11,6 +11,17 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: { name: CATALOG_URL, value: "http://catalog.catalog-dev.svc:8080" }
+  # traces (MIERAI/storefront#7): OTLP/HTTP to Tempo on the phone (platform.yaml clusters.laptop.components.tracing).
+  # Export is in the background (batch queue, dropped when full): the phone being down never slows a request.
+  # dev only; staging / prod get it through the normal promotion later.
+  - target: { kind: Deployment, name: "(web|api)" }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_RESOURCE_ATTRIBUTES, value: "deployment.environment.name=dev,k8s.namespace.name=storefront-dev" }
 images:
   - name: ghcr.io/mierai/storefront-web
     newTag: "ccab018"
