@@ -27,7 +27,13 @@ clusters:
     extras: [{ name: lab, path: clusters/lab/extras }]
     # 2026-11-23: storefront v1 left the lab to make room for storefront v2 (the laptop keeps v1). Its experiments
     # (regression.experiments, paused) still name storefront-*: move or skip them before the regression resumes.
-    applications: { exclude: [storefront] }   # needs v0.1.2 running on both roots (older schemas reject the key)
+    # 2026-11-23: catalog runs dev only here (slo-platform v0.1.3). Its staging/prod were copies of the laptop's with no
+    # traffic (SLI-absent tickets) and ~350Mi of requests on a node at 86%; promotions go through the repository, not
+    # the lab. dev stays as the target of catalog fault experiments.
+    applications:
+      exclude: [storefront]                    # needs v0.1.2 running on both roots (older schemas reject the key)
+      environments:                            # needs v0.1.3 running on both roots
+        catalog: { exclude: [staging, prod] }
     components:
       monitoring: { values: { grafana: { enabled: false } } }   # 7 GB: results are files and metrics, no Grafana here
 optional: { policies: false }      # our own Kyverno policies (GHCR pull secret clone, signatures): extras on the laptop
