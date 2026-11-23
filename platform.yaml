@@ -44,7 +44,21 @@ clusters:
         catalog: { exclude: [staging, prod] }
         api-factory: { exclude: [prod] }
     components:
-      monitoring: { values: { grafana: { enabled: false } } }   # 7 GB: results are files and metrics, no Grafana here
+      monitoring:
+        values:
+          grafana: { enabled: false }   # 7 GB: results are files and metrics, no Grafana here
+          # The lab's dead man's switch, like the laptop's notify.deadman (which the product applies to prod only:
+          # a lab notifies nobody): Watchdog → the phone's watcher every minute (gitops_watch check lab-watchdog);
+          # every other alert still goes to "null". Merged over the platform's config: route.routes is added,
+          # receivers (a list) replaced — keep "null" in it.
+          alertmanager:
+            config:
+              route:
+                routes:
+                  - { receiver: deadman, matchers: ['alertname="Watchdog"'], group_wait: 0s, group_interval: 1m, repeat_interval: 1s }
+              receivers:
+                - { name: "null" }
+                - { name: deadman, webhook_configs: [{ url: "http://100.80.225.15:9195/lab-watchdog", send_resolved: false }] }
 optional: { policies: false }      # our own Kyverno policies (GHCR pull secret clone, signatures): extras on the laptop
 applications:
   namespaceLabels:                 # what our policies (platform/policies) select
