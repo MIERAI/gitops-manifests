@@ -1,0 +1,21 @@
+# Who may call catalog (k3s enforces NetworkPolicies). AUTH_MODE=none means the platform authenticates: this is it.
+#   :8080 (API)      web of the same environment (namespace storefront-<env>, pods app=web); the monitoring namespace
+#                    (blackbox probes); pods of this namespace (smoke tests, synthetic traffic later)
+#   :9090 (metrics)  the monitoring namespace (Prometheus)
+# Only catalog's pods are selected: its Postgres (reached by the operator) is unaffected.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: catalog }
+spec:
+  podSelector: { matchLabels: { app: catalog } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { slo-platform/app: storefront, slo-platform/env: OVERRIDDEN-BY-OVERLAY } }
+          podSelector: { matchLabels: { app: web } }
+        - podSelector: {}
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: http }]
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: metrics }]
