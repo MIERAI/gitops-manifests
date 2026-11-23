@@ -20,6 +20,7 @@ resources:
   - platform-policies.yaml
   - platform-object-storage.yaml
   - platform-traffic.yaml
+  - platform-log-shipping.yaml   # pod logs → Loki on the phone (after the lab soak)
 patches:
   - target: { kind: Application, name: platform-object-storage }
     patch: |-
