@@ -1,0 +1,81 @@
+# The v2 services' message broker: one RabbitMQ node, vhost v2-lab (one vhost per environment, api-factory R4 §4.1),
+# one user `v2` for all five services (per-service users: later, with a secret operator). Its password is the random one
+# CNPG generated into Secret postgres-app (postgres.yaml says why; that Postgres role cannot log in).
+# Durable queues on a volume: a broker restart keeps the queues and the messages in them.
+# Memory: high watermark 160 MiB absolute (publishers are blocked above it, the services' outboxes keep the messages);
+# Erlang schedulers limited to 2 (the node has 8 cores; one per core costs memory and idle CPU on a small lab).
+# Metrics: rabbitmq_prometheus on :15692, per queue (prometheus.return_per_object_metrics: ~40 queues incl. retry/DLQ).
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: rabbitmq }
+data:
+  enabled_plugins: |
+    [rabbitmq_management,rabbitmq_prometheus].
+  20-lab.conf: |
+    vm_memory_high_watermark.absolute = 160MiB
+    disk_free_limit.absolute = 256MB
+    prometheus.return_per_object_metrics = true
+    management.rates_mode = none
+---
+apiVersion: v1
+kind: Service
+metadata: { name: rabbitmq }
+spec:
+  selector: { app: rabbitmq }
+  ports:
+    - { name: amqp, port: 5672, targetPort: amqp }
+    - { name: management, port: 15672, targetPort: management }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: rabbitmq-headless }
+spec:
+  clusterIP: None
+  selector: { app: rabbitmq }
+  ports: [{ name: amqp, port: 5672, targetPort: amqp }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  replicas: 1
+  serviceName: rabbitmq-headless   # stable host name rabbitmq-0 = stable node name rabbit@rabbitmq-0 (its data dir)
+  selector: { matchLabels: { app: rabbitmq } }
+  template:
+    metadata: { labels: { app: rabbitmq } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, fsGroup: 999, seccompProfile: { type: RuntimeDefault } }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: rabbitmq
+          image: mirror.gcr.io/library/rabbitmq:3.13.7-management   # Docker Hub's official image through Google's cache
+          env:
+            - { name: RABBITMQ_DEFAULT_USER, value: v2 }
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom: { secretKeyRef: { name: postgres-app, key: password } }
+            - { name: RABBITMQ_DEFAULT_VHOST, value: v2-lab }
+            - { name: RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS, value: "+S 2:2 +sbwt none +sbwtdcpu none +sbwtdio none" }
+          ports:
+            - { containerPort: 5672, name: amqp }
+            - { containerPort: 15672, name: management }
+            - { containerPort: 15692, name: prometheus }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/rabbitmq }
+            - { name: config, mountPath: /etc/rabbitmq/enabled_plugins, subPath: enabled_plugins }
+            - { name: config, mountPath: /etc/rabbitmq/conf.d/20-lab.conf, subPath: 20-lab.conf }
+          # TCP probes, not rabbitmq-diagnostics: every CLI call starts an Erlang VM inside this container's memory limit
+          readinessProbe: { tcpSocket: { port: amqp }, periodSeconds: 5, initialDelaySeconds: 5 }
+          livenessProbe: { tcpSocket: { port: amqp }, periodSeconds: 20, initialDelaySeconds: 60, failureThreshold: 6 }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes:
+        - { name: config, configMap: { name: rabbitmq } }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 1Gi } }
