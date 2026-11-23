@@ -1,0 +1,37 @@
+# catalog's own database: a CloudNativePG cluster in its namespace (design §4.3: one database and one account per
+# service, the account sees only its database). The operator generates the login: Secret postgres-app (key uri →
+# DATABASE_URL), user and database `catalog`. Tables: the service's migrations (init container, goose).
+#
+# Why its own instance and not a database in storefront's cluster (design §12 "沿用现有的 CNPG 集群"): catalog lives
+# in catalog-<env> and a Pod reads Secrets of its own namespace only; a role in storefront-<env>'s cluster would need its
+# password copied across namespaces (no mechanism on the lab: no Kyverno, no secret operator) or written into this
+# public repository. One small instance per environment (~40 MB used) keeps the ownership strict; revisit at S2 if
+# memory gets tight (a shared per-environment cluster in its own namespace + a secret operator).
+#
+# No backups in dev: the products come from the migrations (00003) and are re-created with the database. Before prod
+# (prices edited by operators = data that exists nowhere else): barman-cloud backups like api-factory's.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10
+  storage: { size: 1Gi }
+  smartShutdownTimeout: 10      # connection pools never disconnect by themselves (api-factory: 197s → 10s)
+  postgresql:
+    parameters: { shared_buffers: 32MB, max_connections: "50" }
+  resources:
+    requests: { cpu: 20m, memory: 96Mi }
+    limits: { memory: 256Mi }
+  bootstrap:
+    initdb: { database: catalog, owner: catalog }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: postgres }
+spec:
+  selector: { matchLabels: { cnpg.io/cluster: postgres } }
+  podMetricsEndpoints:
+    - { port: metrics, interval: 30s }

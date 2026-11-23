@@ -1,0 +1,14 @@
+# dev: the release workflow (MIERAI/storefront release-catalog) sets the image tag
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: catalog-dev
+resources: [../../base]
+patches:
+  - target: { kind: NetworkPolicy, name: catalog }   # web of the same environment
+    patch: |-
+      - op: replace
+        path: /spec/ingress/0/from/0/namespaceSelector/matchLabels/slo-platform~1env
+        value: dev
+images:
+  - name: ghcr.io/mierai/storefront-catalog
+    newTag: "3182342"

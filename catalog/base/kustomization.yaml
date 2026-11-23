@@ -1,0 +1,7 @@
+# catalog (MIERAI/storefront services/catalog). Order (sync waves): its Postgres → the service (an init container runs
+# the schema migrations, same image) → nothing else; web is in storefront and finds it by DNS.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs: { app.kubernetes.io/part-of: storefront }
+resources: [postgres.yaml, catalog.yaml, networkpolicy.yaml, monitoring.yaml]

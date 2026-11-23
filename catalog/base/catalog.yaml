@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  replicas: 2   # browsing must survive a lost pod (node drain, crash), as web does
+  selector: { matchLabels: { app: catalog } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # the new version is ready before an old one goes
+  template:
+    metadata: { labels: { app: catalog } }
+    spec:
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, seccompProfile: { type: RuntimeDefault } }   # distroless nonroot
+      # Schema migrations before every start (goose, embedded in the same image: `/server migrate up`): a new version
+      # migrates before it serves; a re-created database gets its tables and products without a deploy. Pods starting
+      # together: a Postgres advisory lock runs each migration once. Migrations stay compatible with the running
+      # version (expand / contract): during a rolling update the old pods serve on the new schema.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/mierai/storefront-catalog
+          args: [migrate, up]
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: postgres-app, key: uri } }
+          resources:
+            requests: { cpu: 20m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+      containers:
+        - name: catalog
+          image: ghcr.io/mierai/storefront-catalog
+          ports: [{ containerPort: 8080, name: http }, { containerPort: 9090, name: metrics }]   # the image sets PORT / METRICS_PORT
+          env:
+            # The platform authenticates (api-factory-runtime AUTH_MODE=none): only web's pods reach port 8080
+            # (networkpolicy.yaml). The write RPCs get a token when the management screen (F7) arrives.
+            - { name: AUTH_MODE, value: none }
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: postgres-app, key: uri } }
+            # Not set on purpose (start-up WARNs): AMQP_URL — no RabbitMQ before S3, catalog.product_created stays in
+            # the outbox; PAGE_TOKEN_KEY — page tokens are per process (web never pages: ≤100 products per category).
+          # Neither probe touches the database (api-factory-runtime /livez, /readyz): with the database down,
+          # restarting or taking every pod out of the Service fixes nothing and hides the failure from the in-pod SLIs.
+          readinessProbe: { httpGet: { path: /readyz, port: http }, periodSeconds: 5, timeoutSeconds: 3 }
+          livenessProbe: { httpGet: { path: /livez, port: http }, periodSeconds: 20, timeoutSeconds: 5, failureThreshold: 6 }
+          resources:
+            requests: { cpu: 20m, memory: 24Mi }
+            limits: { memory: 128Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: catalog }
+spec:
+  selector: { app: catalog }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: catalog }
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: catalog } }

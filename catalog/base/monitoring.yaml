@@ -1,0 +1,10 @@
+# Scrape catalog (:9090, api-factory-runtime: rpc_requests_total, rpc_request_duration_seconds, outbox and message
+# metrics). The SLOs are declared in catalog/app.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: { name: catalog }
+spec:
+  selector: { matchLabels: { app: catalog } }
+  podTargetLabels: [app]
+  podMetricsEndpoints:
+    - { port: metrics, path: /metrics, interval: 15s }
