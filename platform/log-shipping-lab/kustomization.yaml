@@ -1,7 +1,7 @@
-# Log shipping on the lab (base: ../base): the cluster label of every line.
+# Log shipping on the lab (base: ../log-shipping): the cluster label of every line.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: [../base]
+resources: [../log-shipping]
 patches:
   - target: { kind: Deployment, name: alloy }
     patch: |-

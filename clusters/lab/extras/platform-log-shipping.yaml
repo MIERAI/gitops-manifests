@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/MIERAI/gitops-manifests.git
     targetRevision: main
-    path: platform/log-shipping/lab
+    path: platform/log-shipping-lab
   destination:
     server: https://kubernetes.default.svc
     namespace: log-shipping
