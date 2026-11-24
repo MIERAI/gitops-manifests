@@ -1,0 +1,11 @@
+# The services' egress to the phone's Tempo (OTLP/HTTP), in addition to base/networkpolicy.yaml's DNS / RabbitMQ /
+# Postgres (NetworkPolicies add up). The phone is outside the cluster: its Tailscale address.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: services-tracing }
+spec:
+  podSelector: { matchLabels: { storefront-v2/role: service } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ ipBlock: { cidr: 100.80.225.15/32 } }]
+      ports: [{ port: 4318, protocol: TCP }]
