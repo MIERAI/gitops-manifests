@@ -46,7 +46,7 @@ platform.yaml              the instance: product version, clusters (laptop, lab)
 */app.yaml                 the applications (and their SLOs) slo-platform deploys
 experiments/               fault experiments (alerts must fire) and their results; the lab runs them daily
 clusters/laptop/extras/    what only the laptop has: speakers, delivery board, off-site backup to the phone, external
-                           probes, our Kyverno policies, host object storage, UIs on NodePorts 30085-30090
+                           probes, our Kyverno policies, host object storage, UIs on NodePorts 30085-30086, 30090
 clusters/lab/extras/       what only the lab has: in-cluster object storage, traffic, UIs
 api-factory/base/          Postgres (local only) → API (init container: goose migrations) → smoke Job (PostSync hook), ordered by sync waves
 api-factory/overlays/      dev / prod: namespace, replicas, NodePort, image tags
