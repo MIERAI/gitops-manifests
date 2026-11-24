@@ -1,0 +1,19 @@
+# Distributed tracing (api-factory runtime ≥ 403ec48, runtime/tracing): spans to the phone's Tempo over Tailscale
+# (OTLP/HTTP 4318, ~/workspace/gitops/ENVIRONMENTS.md §4.6), read in Grafana (datasource Tempo). 10% of new traces,
+# parent-based: a request whose caller sampled it (web's traceparent) is kept whole. k8s.namespace.name from the
+# downward API (= <app>-<env>). Images built before 403ec48 ignore these variables. Off: delete this patch.
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_TRACES_SAMPLER_ARG, value: "0.1" }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.namespace.name=$(POD_NAMESPACE)" }

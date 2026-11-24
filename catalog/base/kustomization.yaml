@@ -5,3 +5,6 @@ kind: Kustomization
 labels:
   - pairs: { app.kubernetes.io/part-of: storefront }
 resources: [postgres.yaml, catalog.yaml, networkpolicy.yaml, monitoring.yaml]
+patches:
+  - path: tracing.yaml   # OTEL_* of the server (container 0; the migrate init container needs none)
+    target: { kind: Deployment, name: catalog }
