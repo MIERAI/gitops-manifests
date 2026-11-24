@@ -17,6 +17,7 @@ spec:
     targetRevision: 9.2.2           # Falco 0.45.2
     helm:
       valuesObject:
+        fullnameOverride: falco                     # names the alerts and dashboards expect (not the Application name)
         image: { registry: mirror.gcr.io }          # Docker Hub's images through Google's cache
         podPriorityClassName: system-node-critical  # a security sensor is the last thing to evict
         driver:
