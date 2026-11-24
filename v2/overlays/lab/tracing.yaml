@@ -1,0 +1,19 @@
+# Distributed tracing of the v2 services (api-factory runtime ≥ the tracing commit, runtime/tracing): spans go to the
+# phone's Tempo (OTLP/HTTP 4318 over Tailscale; ~/workspace/gitops/ENVIRONMENTS.md §4.6), read in the laptop's Grafana
+# (datasource Tempo; TraceQL { resource.k8s.namespace.name = "v2-lab" }). Sampled at 10% of new traces, parent-based:
+# a whole order (order → inventory → payment → notification) is kept or dropped together; a request carrying
+# `traceparent: 00-<trace>-<span>-01` is always kept (how a test forces one). A capacity test at ~160 orders/s then sends
+# ~16 traces/s, well under Tempo's 2 MB/s ingest limit. The phone down = spans dropped, requests unaffected.
+# Off again: delete this patch (the runtime is off without OTEL_EXPORTER_OTLP_ENDPOINT).
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_TRACES_SAMPLER_ARG, value: "0.1" }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.namespace.name=v2-lab,deployment.environment.name=lab" }
