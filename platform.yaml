@@ -34,9 +34,11 @@ clusters:
                     - { action: drop, sourceLabels: [job], regex: apiserver }
                     - { action: drop, sourceLabels: [__name__], regex: "(workqueue|scheduler|kine|storage_operation|kubelet_runtime_operations|rest_client|cnpg_pg_settings)_.*" }
                     - { action: replace, targetLabel: cluster, replacement: laptop }
-          grafana:                 # the one Grafana: the lab's and the phone's Prometheus too (phone dashboards:
-            additionalDataSources: # infrastructure-live ansible role phone_dashboards use phone-prometheus)
-              - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
+          grafana:                 # the one Grafana: the phone's Prometheus too (phone dashboards:
+            # infrastructure-live ansible role phone_dashboards use phone-prometheus). The lab's metrics: the long-term
+            # store below (cluster="lab"); the lab's Prometheus is ClusterIP only (port-forward for live queries).
+            deleteDatasources: [{ name: "Prometheus · lab (xiaoxin)", orgId: 1 }]
+            additionalDataSources:
               - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9090", jsonData: { timeInterval: 15s } }
               # the long-term store on the phone (a second Prometheus, 1 y / 150 GB): the clusters remote_write there
               - { name: "Prometheus · long-term (phone)", uid: longterm-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9091", jsonData: { timeInterval: 15s } }
