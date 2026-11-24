@@ -18,6 +18,6 @@ images:
   - name: ghcr.io/mierai/storefront-notification
     newTag: "28079f6"
   - name: ghcr.io/mierai/storefront-order
-    newTag: "d654994"
+    newTag: "28079f6"
   - name: ghcr.io/mierai/storefront-topology
     newTag: "28079f6"
