@@ -17,4 +17,4 @@ patches:
         value: dev
 images:
   - name: ghcr.io/mierai/storefront-catalog
-    newTag: "d654994"
+    newTag: "ccf2fe1"
