@@ -10,7 +10,8 @@ clusters:
   laptop:                          # production: k3s on the always-on HP laptop (infrastructure-live tofu/laptop)
     role: prod
     runtime: k3s
-    applications: { exclude: [v2] }  # storefront v2 runs on the lab only (v2/app.yaml)
+    # storefront v2 runs on the lab only (v2/app.yaml); security-platform: lab first, the laptop after the lab soak
+    applications: { exclude: [v2, security-platform] }
     objectStorage: none            # the object store is SeaweedFS on the host: extras (platform-object-storage)
     extras: [{ name: laptop, path: clusters/laptop/extras }]
     components:
@@ -81,6 +82,7 @@ clusters:
       environments:                            # needs v0.1.3 running on both roots
         catalog: { exclude: [staging, prod] }
         api-factory: { exclude: [prod] }
+        security-platform: { exclude: [prod] }   # the lab runs its own environment (lab), the laptop prod
     components:
       monitoring:
         values:
