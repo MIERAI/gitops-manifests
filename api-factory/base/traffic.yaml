@@ -34,7 +34,9 @@ spec:
                   sleep 0.5
                 done
               done   # no wait: it would pause the loop behind a slow call (ash reaps finished background jobs itself)
+          # 64Mi: at 32Mi it was OOMKilled ~once a day (dev and prod, 3 each in 3 days), when the API was slow or
+          # rolling and the open loop piled up curl processes (--max-time 3, a new one every 0.5s). Steady ~5-10Mi.
           resources:
-            requests: { cpu: 5m, memory: 8Mi }
-            limits: { memory: 32Mi }
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
