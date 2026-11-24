@@ -72,7 +72,10 @@ clusters:
           prometheus:
             prometheusSpec:
               remoteWrite:
-                - url: http://100.80.225.15:9091/api/v1/write
+                # through the phone's auth proxy (Bearer token: secret phone-auth-metrics, infrastructure-live tofu;
+                # ENVIRONMENTS.md 4.11) — :9091 itself only listens on the phone's 127.0.0.1
+                - url: http://100.80.225.15:19091/api/v1/write
+                  authorization: { type: Bearer, credentials: { name: phone-auth-metrics, key: token } }
                   remoteTimeout: 30s
                   queueConfig: { capacity: 2500, maxShards: 2, minShards: 1, maxSamplesPerSend: 1000, batchSendDeadline: 10s, minBackoff: 1s, maxBackoff: 1m }
                   writeRelabelConfigs:

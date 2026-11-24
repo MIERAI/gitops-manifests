@@ -39,6 +39,7 @@ loki.source.kubernetes "pods" {
 loki.write "phone" {
   endpoint {
     url                 = sys.env("LOKI_URL")
+    bearer_token        = sys.env("LOKI_TOKEN")   // the phone's auth proxy (overlay: secret phone-auth-logs); "" = no header
     batch_size          = "512KiB"
     batch_wait          = "5s"
     remote_timeout      = "10s"
