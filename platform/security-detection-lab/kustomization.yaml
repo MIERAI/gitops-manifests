@@ -1,7 +1,7 @@
 # Detection on the lab (platform/security-detection): Falco's rules + backstop alerts, node-logs with cluster=lab.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: [../security-detection/falco, ../security-detection/node-logs]
+resources: [../security-detection]
 patches:
   - target: { kind: DaemonSet, name: node-logs }
     patch: |-
