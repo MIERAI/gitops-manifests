@@ -14,3 +14,6 @@ resources:
 images:
   - name: ghcr.io/mierai/api-factory
   - name: ghcr.io/mierai/api-factory-schema
+patches:
+  - path: tracing.yaml   # OTEL_* of the server (container 0; the migrate init container needs none)
+    target: { kind: Deployment, name: api-factory }
