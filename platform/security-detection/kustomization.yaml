@@ -1,0 +1,5 @@
+# Detection (security-platform detections, pinned in falco/ and node-logs/): the cluster overlays
+# (platform/security-detection-<cluster>) set node-logs' CLUSTER.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [falco, node-logs]

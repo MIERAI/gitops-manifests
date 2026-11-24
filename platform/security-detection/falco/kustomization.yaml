@@ -1,0 +1,8 @@
+# security-platform detection content for Falco (https://github.com/MIERAI/security-platform, detections/falco):
+# the curated rules ConfigMap that platform-falco mounts into rules.d, and the in-cluster backstop alerts.
+# Upgrade = change the ref (a full commit SHA) together with the version note.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: security-detection
+resources:
+  - https://github.com/MIERAI/security-platform//detections/falco?ref=8de1ff50ac5396e9034e5ac4855dba3297e44bad   # detections 0.1.0
