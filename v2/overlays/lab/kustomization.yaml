@@ -16,7 +16,7 @@ images:
   - name: ghcr.io/mierai/storefront-payment
     newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-notification
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-order
     newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-topology
