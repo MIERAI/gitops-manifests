@@ -16,9 +16,11 @@ clusters:
     components:
       # traces: Tempo on the phone (outside production's request path: phone down = fewer traces, prod unaffected).
       # Grafana gets a Tempo datasource; the services that export set OTLP themselves (storefront-dev only, for now).
-      tracing: { enabled: true, external: { queryUrl: "http://100.80.225.15:3200", endpoint: "http://100.80.225.15:4318" } }
+      # Through the phone's auth proxy (ENVIRONMENTS.md 4.11: Bearer tokens; the plain ports listen on its 127.0.0.1 only).
+      # Grafana's datasources carry the token: monitoring.values.grafana below (datasources tempo.yaml / loki.yaml).
+      tracing: { enabled: true, external: { queryUrl: "http://100.80.225.15:13200", endpoint: "http://100.80.225.15:14318" } }
       # logs: Loki on the phone (same reasoning); the collectors are extras (platform/log-shipping, lab first)
-      logging: { enabled: true, external: { queryUrl: "http://100.80.225.15:3100", endpoint: "http://100.80.225.15:3100/loki/api/v1/push" } }
+      logging: { enabled: true, external: { queryUrl: "http://100.80.225.15:13100", endpoint: "http://100.80.225.15:13100/loki/api/v1/push" } }
       monitoring:
         values:
           # Long-term copy on the phone (~/promlt), as on the lab: small queue read from the WAL in the background (the
@@ -27,7 +29,9 @@ clusters:
           prometheus:
             prometheusSpec:
               remoteWrite:
-                - url: http://100.80.225.15:9091/api/v1/write
+                # through the phone's auth proxy (Bearer token: secret phone-auth-metrics, infrastructure-live tofu)
+                - url: http://100.80.225.15:19091/api/v1/write
+                  authorization: { type: Bearer, credentials: { name: phone-auth-metrics, key: token } }
                   remoteTimeout: 30s
                   queueConfig: { capacity: 2500, maxShards: 2, minShards: 1, maxSamplesPerSend: 1000, batchSendDeadline: 10s, minBackoff: 1s, maxBackoff: 1m }
                   writeRelabelConfigs:
@@ -35,11 +39,25 @@ clusters:
                     - { action: drop, sourceLabels: [__name__], regex: "(workqueue|scheduler|kine|storage_operation|kubelet_runtime_operations|rest_client|cnpg_pg_settings)_.*" }
                     - { action: replace, targetLabel: cluster, replacement: laptop }
           grafana:                 # the one Grafana: the lab's and the phone's Prometheus too (phone dashboards:
+            # The phone's stores answer a Bearer token only (auth proxy, ENVIRONMENTS.md 4.11): the read token comes from
+            # secret phone-auth-grafana (infrastructure-live tofu) as PHONE_GRAFANA_TOKEN, which Grafana expands in its
+            # provisioning files (secureJsonData: stored encrypted, never shown). Tempo / Loki: the product's datasources
+            # (components.tracing / logging) replaced by the same ones plus the header (a map key each: tempo.yaml, loki.yaml).
+            envValueFrom: { PHONE_GRAFANA_TOKEN: { secretKeyRef: { name: phone-auth-grafana, key: token } } }
+            datasources:
+              tempo.yaml:
+                apiVersion: 1
+                datasources:
+                  - { name: Tempo, uid: tempo, type: tempo, access: proxy, url: "http://100.80.225.15:13200", jsonData: { httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
+              loki.yaml:
+                apiVersion: 1
+                datasources:
+                  - { name: Loki, uid: loki, type: loki, access: proxy, url: "http://100.80.225.15:13100", jsonData: { httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
             additionalDataSources: # infrastructure-live ansible role phone_dashboards use phone-prometheus)
               - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
-              - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9090", jsonData: { timeInterval: 15s } }
+              - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:19090", jsonData: { timeInterval: 15s, httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
               # the long-term store on the phone (a second Prometheus, 1 y / 150 GB): the clusters remote_write there
-              - { name: "Prometheus · long-term (phone)", uid: longterm-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9091", jsonData: { timeInterval: 15s } }
+              - { name: "Prometheus · long-term (phone)", uid: longterm-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:19091", jsonData: { timeInterval: 15s, httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
   lab:                             # the lab: k3s on xiaoxin (7 GB) — experiments and the daily regression run here
     role: lab
     runtime: k3s

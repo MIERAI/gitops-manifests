@@ -61,7 +61,11 @@ patches:
         path: /spec/source/helm/valuesObject/grafana/additionalDataSources
         value:
           - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
-          - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:9090", jsonData: { timeInterval: 15s } }
+          - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:19090", jsonData: { timeInterval: 15s, httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
+      # the phone's auth proxy (ENVIRONMENTS.md 4.11): read token from secret phone-auth-grafana (same as platform.yaml)
+      - op: add
+        path: /spec/source/helm/valuesObject/grafana/envValueFrom
+        value: { PHONE_GRAFANA_TOKEN: { secretKeyRef: { name: phone-auth-grafana, key: token } } }
       - op: add
         path: /spec/source/helm/valuesObject/alertmanager/config
         value:

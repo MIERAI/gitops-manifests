@@ -20,7 +20,15 @@ patches:
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/env/-
-        value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+        value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:14318" }
+      # the phone's auth proxy (ENVIRONMENTS.md 4.11): Bearer token from secret phone-auth-traces (infrastructure-live
+      # tofu; optional: missing = spans refused, web runs), expanded into the header defined after it
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: PHONE_TRACES_TOKEN, valueFrom: { secretKeyRef: { name: phone-auth-traces, key: token, optional: true } } }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_EXPORTER_OTLP_HEADERS, value: "Authorization=Bearer%20$(PHONE_TRACES_TOKEN)" }
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: { name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio }
