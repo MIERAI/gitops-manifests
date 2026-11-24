@@ -20,4 +20,4 @@ images:
   - name: ghcr.io/mierai/storefront-order
     newTag: "28079f6"
   - name: ghcr.io/mierai/storefront-topology
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
