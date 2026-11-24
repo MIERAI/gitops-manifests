@@ -36,7 +36,8 @@ spec:
         resources:
           requests: { cpu: 50m, memory: 128Mi }
           limits: { memory: 768Mi }                 # BPF maps and ring buffers are charged to the cgroup at start (384Mi: OOMKilled)
-        metrics: { enabled: true, interval: 5m, rulesCountersEnabled: true, resourceUtilizationEnabled: true }
+        # includeEmptyValues: every enabled rule is exported at 0, so the first match is an increase (in-cluster alerts)
+        metrics: { enabled: true, interval: 5m, rulesCountersEnabled: true, resourceUtilizationEnabled: true, includeEmptyValues: true }
         serviceMonitor: { create: true }
         falcoctl:
           image: { registry: mirror.gcr.io }
