@@ -4,9 +4,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - https://github.com/MIERAI/security-platform//deploy/kubernetes/hub?ref=75eb5d42b031f6b6599d3321345c0eba450781bf
+  - https://github.com/MIERAI/security-platform//deploy/kubernetes/hub?ref=54c24adaf1e25913a16d1a3773d75b04b822b47f
 images:
-  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 75eb5d4 }
+  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 54c24ad }
 patches:
   # the ledger lives here: never pruned or deleted by a sync (removing it is a deliberate, manual act)
   - target: { kind: PersistentVolumeClaim, name: security-platform-hub-data }
