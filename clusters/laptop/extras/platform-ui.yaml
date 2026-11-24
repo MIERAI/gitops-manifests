@@ -1,4 +1,4 @@
-# The platform's UIs on NodePorts (platform/ui-laptop): http://<this machine>:30085-30089
+# The platform's UIs on NodePorts (platform/ui-laptop): http://<this machine>:30085-30086 (Argo CD, Grafana)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

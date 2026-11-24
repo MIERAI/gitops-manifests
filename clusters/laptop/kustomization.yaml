@@ -2,8 +2,8 @@
 # - object storage outside the cluster (host SeaweedFS on its own disk): backups survive a cluster rebuild
 # - hourly encrypted off-site copy of the backups to the phone (platform/offsite-backup), and its SLO
 # - delivery board: every change of every application, from PR to prod, and the promotion gates (platform/delivery-board, :30090)
-# - the UIs on NodePorts (platform/ui-laptop): Argo CD :30085, Grafana :30086 (also the lab's and the phone's Prometheus),
-#   Prometheus :30087, Alertmanager :30088, Pyrra :30089
+# - the UIs on NodePorts (platform/ui-laptop): Argo CD :30085, Grafana :30086 (also the phone's Prometheus); internal
+#   UIs (Prometheus, Alertmanager, Pyrra) by port-forward
 # - Alertmanager routes our prod alerts (severity page / ticket) to the laptop's speakers; the chart's default rules
 #   (severity critical / warning / info) go nowhere: several false-positive on k3s, where the control plane runs
 #   inside one process
@@ -21,7 +21,7 @@ resources:
   - platform-delivery-board.yaml
   - platform-external-probe-storefront.yaml
   - platform-external-probe-sample-app.yaml
-  - platform-ui.yaml               # Argo CD, Grafana, Prometheus, Alertmanager, Pyrra on NodePorts 30085-30089
+  - platform-ui.yaml               # Argo CD, Grafana on NodePorts 30085-30086
 patches:
   - target: { kind: Application, name: platform-traffic }
     patch: |-
@@ -60,7 +60,6 @@ patches:
       - op: add
         path: /spec/source/helm/valuesObject/grafana/additionalDataSources
         value:
-          - { name: "Prometheus · lab (xiaoxin)", uid: lab-prometheus, type: prometheus, access: proxy, url: "http://100.76.236.114:30087", jsonData: { timeInterval: 15s } }
           - { name: "Prometheus · phone", uid: phone-prometheus, type: prometheus, access: proxy, url: "http://100.80.225.15:19090", jsonData: { timeInterval: 15s, httpHeaderName1: Authorization }, secureJsonData: { httpHeaderValue1: "Bearer ${PHONE_GRAFANA_TOKEN}" } }
       # the phone's auth proxy (ENVIRONMENTS.md 4.11): read token from secret phone-auth-grafana (same as platform.yaml)
       - op: add
