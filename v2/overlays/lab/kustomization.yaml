@@ -12,12 +12,12 @@ images:
   - name: ghcr.io/mierai/storefront-catalog
     newTag: "d654994"
   - name: ghcr.io/mierai/storefront-inventory
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-payment
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-notification
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-order
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
   - name: ghcr.io/mierai/storefront-topology
-    newTag: "28079f6"
+    newTag: "ccf2fe1"
