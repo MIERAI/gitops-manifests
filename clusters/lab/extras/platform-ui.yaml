@@ -1,4 +1,4 @@
-# The platform's UIs on NodePorts (platform/ui): http://<this machine>:30085-30089
+# The platform's UIs on NodePorts (platform/ui): http://<this machine>:30085 (Argo CD)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

@@ -11,7 +11,7 @@ kind: Kustomization
 resources:
   - ../../apps
   - platform-external-users.yaml   # the laptop's prod users, from outside; the prober of its external probe SLOs
-  - platform-ui.yaml               # Argo CD, Prometheus, Alertmanager, Pyrra on NodePorts 30085-30089
+  - platform-ui.yaml               # Argo CD on NodePort 30085
 patches:
   - target: { kind: Application, name: platform-kyverno }
     patch: |-
