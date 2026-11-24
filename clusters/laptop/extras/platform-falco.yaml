@@ -1,0 +1,66 @@
+# Falco: runtime threat detection (official chart, pinned), configured per security-platform docs/detection.md.
+# Low noise by construction: every upstream rule is disabled, only the tag `security-platform` is enabled (the curated
+# set in the ConfigMap falco-rules-security-platform, from platform-security-detection). JSON events go to stdout →
+# Alloy (platform-log-shipping) → Loki, where the ruler turns them into alerts; Falco's own metrics feed the
+# in-cluster backstop alerts. Modern eBPF (CO-RE, no driver build), least-privileged capabilities instead of
+# privileged; no sidekick, no metacollector, no rules-follow sidecar (rules are pinned: falco-rules 5.2.0).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-falco
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://falcosecurity.github.io/charts
+    chart: falco
+    targetRevision: 9.2.2           # Falco 0.45.2
+    helm:
+      valuesObject:
+        fullnameOverride: falco                     # names the alerts and dashboards expect (not the Application name)
+        image: { registry: mirror.gcr.io }          # Docker Hub's images through Google's cache
+        podPriorityClassName: system-node-critical  # a security sensor is the last thing to evict
+        driver:
+          kind: modern_ebpf
+          modernEbpf: { leastPrivileged: true, bufSizePreset: 2 }   # 2 MB per ring buffer (default 8): small node
+        collectors:
+          containerEngine:
+            engines:
+              docker: { enabled: false }
+              podman: { enabled: false }
+              containerd: { enabled: false }
+              cri: { enabled: true, sockets: ["/run/k3s/containerd/containerd.sock"] }
+              lxc: { enabled: false }
+              libvirt_lxc: { enabled: false }
+              bpm: { enabled: false }
+        resources:
+          requests: { cpu: 50m, memory: 128Mi }
+          limits: { memory: 384Mi }
+        metrics: { enabled: true, interval: 5m, rulesCountersEnabled: true, resourceUtilizationEnabled: true }
+        serviceMonitor: { create: true }
+        falcoctl:
+          image: { registry: mirror.gcr.io }
+          artifact: { follow: { enabled: false } }
+          config: { artifact: { install: { refs: ["falco-rules:5.2.0"] } } }
+        mounts:
+          volumes: [{ name: rules-security-platform, configMap: { name: falco-rules-security-platform } }]
+          volumeMounts: [{ name: rules-security-platform, mountPath: /etc/falco/rules.d, readOnly: true }]
+        falco:
+          rules:
+            - disable: { rule: "*" }
+            - enable: { tag: security-platform }
+          json_output: true
+          json_include_output_property: true
+          json_include_tags_property: true
+          priority: notice
+          buffered_outputs: false
+          stdout_output: { enabled: true }
+          syslog_output: { enabled: false }
+          webserver: { prometheus_metrics_enabled: true }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: security-detection
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
