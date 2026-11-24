@@ -7,7 +7,16 @@
   value: { name: POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
 - op: add
   path: /spec/template/spec/containers/0/env/-
-  value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+  value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:14318" }
+# Through the phone's auth proxy (ENVIRONMENTS.md 4.11): port 14318 + Bearer token from secret phone-auth-traces
+# (infrastructure-live tofu, both clusters; optional: missing = spans refused, the server runs). The token variable
+# comes before the header that expands it ($(…) only sees variables defined earlier).
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: PHONE_TRACES_TOKEN, valueFrom: { secretKeyRef: { name: phone-auth-traces, key: token, optional: true } } }
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: { name: OTEL_EXPORTER_OTLP_HEADERS, value: "Authorization=Bearer%20$(PHONE_TRACES_TOKEN)" }
 - op: add
   path: /spec/template/spec/containers/0/env/-
   value: { name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio }
