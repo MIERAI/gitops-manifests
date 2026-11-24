@@ -4,3 +4,8 @@ namespace: security-platform-prod
 resources:
   - ../../base
   - dashboard.yaml        # the laptop's Grafana picks it up (sidecar label grafana_dashboard)
+  - ../../hub             # the in-cluster hub (after the lab run)
+  - sites.yaml
+configMapGenerator:
+  - { name: security-platform-hub, files: [instance.json=hub.json] }
+generatorOptions: { disableNameSuffixHash: true }
