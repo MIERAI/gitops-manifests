@@ -8,4 +8,4 @@ spec:
   policyTypes: [Egress]
   egress:
     - to: [{ ipBlock: { cidr: 100.80.225.15/32 } }]
-      ports: [{ port: 4318, protocol: TCP }]
+      ports: [{ port: 14318, protocol: TCP }]   # the auth proxy (ENVIRONMENTS.md 4.11); 4318 is the phone's 127.0.0.1 only

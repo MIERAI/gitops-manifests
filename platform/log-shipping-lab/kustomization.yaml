@@ -8,3 +8,11 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/env/1/value
         value: lab
+      # Loki through the phone's auth proxy (ENVIRONMENTS.md 4.11): its port and a Bearer token (secret phone-auth-logs,
+      # infrastructure-live tofu); :3100 itself only listens on the phone's 127.0.0.1
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: http://100.80.225.15:13100/loki/api/v1/push
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: LOKI_TOKEN, valueFrom: { secretKeyRef: { name: phone-auth-logs, key: token } } }
