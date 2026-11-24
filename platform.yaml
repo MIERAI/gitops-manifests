@@ -14,6 +14,9 @@ clusters:
     objectStorage: none            # the object store is SeaweedFS on the host: extras (platform-object-storage)
     extras: [{ name: laptop, path: clusters/laptop/extras }]
     components:
+      # no fault injection in production (slo-platform v0.1.6: turning it off deletes what it installed, and the
+      # application namespaces lose chaos-mesh.org/inject); the lab keeps it for the experiments
+      chaos-mesh: { enabled: false }
       # traces: Tempo on the phone (outside production's request path: phone down = fewer traces, prod unaffected).
       # Grafana gets a Tempo datasource; the services that export set OTLP themselves (storefront-dev only, for now).
       tracing: { enabled: true, external: { queryUrl: "http://100.80.225.15:3200", endpoint: "http://100.80.225.15:4318" } }
