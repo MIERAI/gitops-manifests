@@ -1,0 +1,23 @@
+# node-logs (security-platform detections/node-logs): every node's API audit log and auth journal → Loki on the phone,
+# through its auth proxy (ENVIRONMENTS.md 4.11) with the cluster's log-push token (Secret phone-auth-logs, already in
+# log-shipping). The cluster overlays set CLUSTER.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: log-shipping
+resources:
+  - https://github.com/MIERAI/security-platform//detections/node-logs?ref=8de1ff50ac5396e9034e5ac4855dba3297e44bad   # detections 0.1.0
+patches:
+  - target: { kind: DaemonSet, name: node-logs }
+    patch: |-
+      - op: test
+        path: /spec/template/spec/containers/0/env/1/name
+        value: LOKI_URL
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: http://100.80.225.15:13100/loki/api/v1/push
+      - op: test
+        path: /spec/template/spec/containers/0/env/2/name
+        value: LOKI_TOKEN
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2
+        value: { name: LOKI_TOKEN, valueFrom: { secretKeyRef: { name: phone-auth-logs, key: token } } }

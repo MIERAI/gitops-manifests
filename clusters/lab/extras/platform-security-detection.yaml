@@ -1,0 +1,21 @@
+# Runtime and log detection (security-platform detections, docs/detection.md): Falco's curated rules + in-cluster
+# backstop alerts (namespace security-detection) and node-logs (API audit log + auth journal → Loki, namespace
+# log-shipping). The rules that turn those logs into alerts run in Loki's ruler on the phone. The lab first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-security-detection
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/security-detection-lab
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: security-detection
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

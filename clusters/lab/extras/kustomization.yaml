@@ -10,3 +10,5 @@ resources:
   - platform-capacity.yaml
   - platform-sync-window.yaml
   - platform-log-shipping.yaml   # pod logs → Loki on the phone
+  - platform-falco.yaml                # runtime detection (security-platform detections)
+  - platform-security-detection.yaml   # its rules, backstop alerts, node-logs (audit + auth → Loki)
