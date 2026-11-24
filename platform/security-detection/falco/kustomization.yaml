@@ -5,4 +5,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: security-detection
 resources:
-  - https://github.com/MIERAI/security-platform//detections/falco?ref=8de1ff50ac5396e9034e5ac4855dba3297e44bad   # detections 0.1.0
+  - https://github.com/MIERAI/security-platform//detections/falco?ref=f846d3b471bf7c85094159968649f938a17a2273   # detections 0.2.0
