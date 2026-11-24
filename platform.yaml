@@ -2,7 +2,7 @@
 # platform itself comes from the product at product.version; what is ours is here — the applications (*/app.yaml at
 # the root), their experiments (experiments/), and the components only our clusters have (clusters/<name>/extras).
 apiVersion: slo-platform/v1
-product: { repo: https://github.com/MIERAI/slo-platform.git, version: v0.1.5 }   # upgrade = change the version
+product: { repo: https://github.com/MIERAI/slo-platform.git, version: v0.1.6 }   # upgrade = change the version
 instance: { repo: https://github.com/MIERAI/gitops-manifests.git, revision: main, apps: "." }
 timezone: Asia/Tokyo
 language: zh
@@ -14,6 +14,9 @@ clusters:
     objectStorage: none            # the object store is SeaweedFS on the host: extras (platform-object-storage)
     extras: [{ name: laptop, path: clusters/laptop/extras }]
     components:
+      # no fault injection in production (slo-platform v0.1.6: turning it off deletes what it installed, and the
+      # application namespaces lose chaos-mesh.org/inject); the lab keeps it for the experiments
+      chaos-mesh: { enabled: false }
       # traces: Tempo on the phone (outside production's request path: phone down = fewer traces, prod unaffected).
       # Grafana gets a Tempo datasource; the services that export set OTLP themselves (storefront-dev only, for now).
       # Through the phone's auth proxy (ENVIRONMENTS.md 4.11: Bearer tokens; the plain ports listen on its 127.0.0.1 only).
