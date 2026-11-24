@@ -5,7 +5,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: log-shipping
 resources:
-  - https://github.com/MIERAI/security-platform//detections/node-logs?ref=f846d3b471bf7c85094159968649f938a17a2273   # detections 0.2.0
+  - https://github.com/MIERAI/security-platform//detections/node-logs?ref=ce92e9df442eef1d3491596dcc8690a58d45c96e   # detections 0.2.1
 patches:
   - target: { kind: DaemonSet, name: node-logs }
     patch: |-
