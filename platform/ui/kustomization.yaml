@@ -1,8 +1,9 @@
-# The platform's UIs, reachable without a port-forward (laptop and lab: clusters/<name>/platform-ui.yaml), one port each,
-# the same on every cluster: http://<machine>:<port>. Separate NodePort Services next to the charts' own (which stay
-# ClusterIP): no chart values to change. Reachable from the tailnet and the home LAN. Argo CD and Grafana ask for a
-# password; Prometheus, Alertmanager and Pyrra have none (anyone on those networks can read them and silence alerts).
-#   30085 Argo CD   30086 Grafana (laptop: platform/ui-laptop)   30087 Prometheus   30088 Alertmanager   30089 Pyrra
+# The platform's UIs reachable without a port-forward (laptop and lab: clusters/<name>/platform-ui.yaml), the same port
+# on every cluster: http://<machine>:<port>. A separate NodePort Service next to the chart's own (which stays ClusterIP).
+#   30085 Argo CD   30086 Grafana (laptop: platform/ui-laptop)
+# Internal UIs (Prometheus, Alertmanager, Pyrra) use their ClusterIP Services: port-forward or the API server's
+# service proxy, e.g. kubectl -n monitoring port-forward svc/kps-prometheus 9090 (svc/kps-alertmanager 9093,
+# svc/pyrra-api 9099), or infrastructure-live scripts/ui.sh.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources: [services.yaml]
