@@ -36,15 +36,20 @@ spec:
         resources:
           requests: { cpu: 50m, memory: 128Mi }
           limits: { memory: 768Mi }                 # BPF maps and ring buffers are charged to the cgroup at start (384Mi: OOMKilled)
-        # includeEmptyValues: every enabled rule is exported at 0, so the first match is an increase (in-cluster alerts)
-        metrics: { enabled: true, interval: 5m, rulesCountersEnabled: true, resourceUtilizationEnabled: true, includeEmptyValues: true }
+        metrics: { enabled: true, interval: 5m, rulesCountersEnabled: true, resourceUtilizationEnabled: true }
         serviceMonitor: { create: true }
         falcoctl:
           image: { registry: mirror.gcr.io }
           artifact: { follow: { enabled: false } }
           config: { artifact: { install: { refs: ["falco-rules:5.2.0"] } } }
         mounts:
-          volumes: [{ name: rules-security-platform, configMap: { name: falco-rules-security-platform } }]
+          # the product's curated rules + the cluster's additions (lists appended; loaded in file-name order)
+          volumes:
+            - name: rules-security-platform
+              projected:
+                sources:
+                  - configMap: { name: falco-rules-security-platform }
+                  - configMap: { name: falco-rules-instance, optional: true }
           volumeMounts: [{ name: rules-security-platform, mountPath: /etc/falco/rules.d, readOnly: true }]
         falco:
           rules:

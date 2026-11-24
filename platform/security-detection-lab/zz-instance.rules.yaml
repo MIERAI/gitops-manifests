@@ -1,0 +1,6 @@
+# Lab additions to security-platform's curated Falco rules (loaded after them: file name order in rules.d).
+# Namespaces whose pods legitimately reach the internet: Argo CD (Git and Helm repositories). Add others only with the
+# event that showed it (Loki: {container="falco"} |= "SP Unexpected outbound"), never by guess.
+- list: sp_outbound_namespaces
+  items: [argocd]
+  override: { items: append }
