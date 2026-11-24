@@ -2,6 +2,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources: [../security-detection]
+configMapGenerator:          # the laptop's own Falco list additions (mounted next to the product's rules)
+  - name: falco-rules-instance
+    namespace: security-detection
+    files: [zz-instance.rules.yaml]
+    options: { disableNameSuffixHash: true }
 patches:
   - target: { kind: DaemonSet, name: node-logs }
     patch: |-
