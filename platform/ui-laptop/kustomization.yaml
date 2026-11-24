@@ -1,5 +1,5 @@
-# platform/ui and the laptop's Grafana (the lab has none): the one Grafana, with the lab's and the phone's Prometheus as
-# data sources (clusters/laptop)
+# platform/ui and the laptop's Grafana (the lab has none): the one Grafana, with the phone's Prometheus (and the
+# long-term store, where the lab's metrics are too: cluster="lab") as data sources (platform.yaml clusters.laptop)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: [../ui, grafana.yaml]
+resources: [../ui, grafana.yaml, monitoring.yaml]
