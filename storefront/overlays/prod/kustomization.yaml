@@ -16,6 +16,24 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: { name: CATALOG_URL, value: "http://catalog.catalog-prod.svc:8080" }
+  # traces: web → OTLP/HTTP to Tempo on the phone (~/workspace/gitops/ENVIRONMENTS.md §4.6), as dev (MIERAI/storefront#7)
+  # and staging. 10% of new traces, parent-based (same as catalog/base/tracing.yaml): web is the root and catalog
+  # follows web's decision, so a sampled page view is kept whole (web → catalog). Export is in the background (batch
+  # queue, dropped when full): the phone being down never slows a request. Web only. Rollback = revert this patch.
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://100.80.225.15:4318" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_TRACES_SAMPLER, value: parentbased_traceidratio }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_TRACES_SAMPLER_ARG, value: "0.1" }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: OTEL_RESOURCE_ATTRIBUTES, value: "deployment.environment.name=prod,k8s.namespace.name=storefront-prod" }
 images:
   - name: ghcr.io/mierai/storefront-web
     newTag: "ccab018"
