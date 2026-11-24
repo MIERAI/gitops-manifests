@@ -1,0 +1,16 @@
+# The product's in-cluster hub (deploy/kubernetes/hub at the same pinned commit as ../base): CronJob + PVC,
+# least-privilege ServiceAccount, inbox Roles and admission policy, NetworkPolicy. Overlays add their instance config
+# (ConfigMap security-platform-hub) and their sites' identities. Upgrade = change ref and newTag with ../base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/MIERAI/security-platform//deploy/kubernetes/hub?ref=75eb5d42b031f6b6599d3321345c0eba450781bf
+images:
+  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 75eb5d4 }
+patches:
+  # the ledger lives here: never pruned or deleted by a sync (removing it is a deliberate, manual act)
+  - target: { kind: PersistentVolumeClaim, name: security-platform-hub-data }
+    patch: |
+      - op: add
+        path: /metadata/annotations
+        value: { argocd.argoproj.io/sync-options: "Prune=false,Delete=false" }

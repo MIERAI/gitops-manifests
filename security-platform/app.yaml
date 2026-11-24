@@ -1,7 +1,8 @@
 # security-platform (https://github.com/MIERAI/security-platform): its metrics exporter, regression alert rules,
 # dashboard and SLOs. Only aggregate metrics come here; findings stay in the operator's private data directory.
-# The exporter serves the ConfigMap security-platform-metrics, which the platform's hub (outside the cluster) writes;
-# Argo CD does not manage that ConfigMap. Environments: lab on the lab cluster, prod on the laptop (platform.yaml
+# The exporter serves the ConfigMap security-platform-metrics, which the platform's hub writes (lab: the in-cluster
+# hub, overlays/lab + ../hub; prod: a hub outside the cluster until its in-cluster hub is enabled); Argo CD does not
+# manage that ConfigMap, the hub's inbox Secrets or its snapshot Secret. Environments: lab on the lab cluster, prod on the laptop (platform.yaml
 # clusters.<name>.environments / applications).
 name: security-platform
 repo: MIERAI/security-platform
