@@ -16,7 +16,7 @@ images:
   - name: ghcr.io/mierai/storefront-payment
     newTag: "d654994"
   - name: ghcr.io/mierai/storefront-notification
-    newTag: "d654994"
+    newTag: "28079f6"
   - name: ghcr.io/mierai/storefront-order
     newTag: "d654994"
   - name: ghcr.io/mierai/storefront-topology
