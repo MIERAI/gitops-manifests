@@ -1,6 +1,9 @@
 # Laptop additions to security-platform's curated Falco rules (loaded after them: file name order in rules.d).
 # Namespaces whose pods legitimately reach the internet: Argo CD (Git and Helm repositories, as on the lab) and the
 # delivery board (GitHub API). Add others only with the event that showed it, never by guess.
+# First day on the laptop (2026-11-25, Falco events): kube-system = CoreDNS forwarding to the upstream resolver
+# (8.8.8.8:53; this host's resolver is a loopback stub, so k3s points CoreDNS upstream); kyverno = image signature
+# verification (registry and transparency log over 443). Grafana's update checks were switched off instead.
 - list: sp_outbound_namespaces
-  items: [argocd, delivery-board]
+  items: [argocd, delivery-board, kube-system, kyverno]
   override: { items: append }
