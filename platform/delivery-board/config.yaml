@@ -2,9 +2,10 @@
 # /etc/delivery-board. Expanded: delivery-board -print-config -config config.yaml
 title: 交付看板
 timezone: Asia/Tokyo
-# 2m, not 30s: at 30s the board alone made ~6,900 GitHub API calls an hour (measured 2026-11-25), over the account's
-# 5,000/h shared with every other tool of the same user, so everything got 403 for part of each hour.
-interval: 2m
+# 1m. At 30s without conditional requests the board alone made ~6,900 counted GitHub API calls an hour (2026-11-25),
+# over the 5,000/h every token of the account shares. Since 917f94f unchanged data comes back as 304, which is not
+# counted (measured: 0 counted calls in 8 minutes, all 304); `github.reserve` pauses it before it can starve others.
+interval: 1m
 github: { reserve: 0.2 }       # pause refreshes below 20% of the hourly budget (left for other tools)
 maxRuns: 12
 
