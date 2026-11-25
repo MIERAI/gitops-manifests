@@ -19,3 +19,10 @@ patches:
     patch: |
       - { op: replace, path: /metadata/name, value: security-platform-hub-read-prod }
       - { op: replace, path: /roleRef/name, value: security-platform-hub-read-prod }
+  - target: { kind: ValidatingAdmissionPolicy, name: security-platform-inbox-identity }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-inbox-identity-prod }
+  - target: { kind: ValidatingAdmissionPolicyBinding, name: security-platform-inbox-identity }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-inbox-identity-prod }
+      - { op: replace, path: /spec/policyName, value: security-platform-inbox-identity-prod }
