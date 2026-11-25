@@ -1,0 +1,30 @@
+# Sites that report to this hub. Each can only create documents in the inbox (Role security-platform-inbox-writer);
+# the admission policy ties a document's site label to the ServiceAccount name. Tokens are issued by an admin
+# (kubectl create token, time-limited) and kept by the site; nothing secret is stored here.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: security-platform-site-vantage }
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: security-platform-site-vantage }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: security-platform-inbox-writer }
+subjects: [{ kind: ServiceAccount, name: security-platform-site-vantage }]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: security-platform-site-workstation }
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: security-platform-site-workstation }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: security-platform-inbox-writer }
+subjects: [{ kind: ServiceAccount, name: security-platform-site-workstation }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: security-platform-site-workstation-snapshot }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: security-platform-snapshot-reader }
+subjects: [{ kind: ServiceAccount, name: security-platform-site-workstation }]
