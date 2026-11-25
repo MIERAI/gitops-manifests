@@ -15,7 +15,7 @@ spec:
       securityContext: { runAsNonRoot: true, runAsUser: 100, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: smoke
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.23.0
           command: ["sh", "-c"]
           args:
             - |
