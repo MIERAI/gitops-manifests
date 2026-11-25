@@ -1,0 +1,6 @@
+# Laptop additions to security-platform's curated Falco rules (loaded after them: file name order in rules.d).
+# Namespaces whose pods legitimately reach the internet: Argo CD (Git and Helm repositories, as on the lab) and the
+# delivery board (GitHub API). Add others only with the event that showed it, never by guess.
+- list: sp_outbound_namespaces
+  items: [argocd, delivery-board]
+  override: { items: append }

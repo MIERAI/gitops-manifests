@@ -21,6 +21,8 @@ resources:
   - platform-object-storage.yaml
   - platform-traffic.yaml
   - platform-log-shipping.yaml   # pod logs → Loki on the phone (after the lab soak)
+  - platform-falco.yaml                # runtime detection (security-platform detections), after the lab soak
+  - platform-security-detection.yaml   # its rules, in-cluster alerts, node-logs (audit + auth → Loki)
 patches:
   - target: { kind: Application, name: platform-object-storage }
     patch: |-
