@@ -18,6 +18,14 @@ export RCLONE_CONFIG_VAULT_TYPE=crypt RCLONE_CONFIG_VAULT_REMOTE=phone: RCLONE_C
 start=$(date +%s)
 rclone sync src:cnpg vault:cnpg --backup-dir "vault:trash/$(date -u +%F)" --transfers 4 --checkers 8 \
   --stats-one-line --stats-log-level NOTICE --stats 60s
-# trash/ exists only after the first deletion at the source
-if rclone lsf vault: --dirs-only | grep -qx 'trash/'; then rclone delete vault:trash --min-age 14d --rmdirs; fi
-echo "synced in $(( $(date +%s) - start ))s; off-site copy: $(rclone size vault:cnpg --json)"
+# trash/ exists only after the first deletion at the source.
+# The listing must not hide errors (a lost connection is a failure, not "no trash"); expired files are deleted first,
+# then only directories that are really empty (--min-age with --rmdirs would try to remove directories that still
+# hold younger files and fail).
+dirs=$(rclone lsf vault: --dirs-only)
+if printf '%s\n' "$dirs" | grep -qx 'trash/'; then
+  rclone delete vault:trash --min-age 14d
+  rclone rmdirs vault:trash --leave-root
+fi
+size=$(rclone size vault:cnpg --json)
+echo "synced in $(( $(date +%s) - start ))s; off-site copy: $size"
