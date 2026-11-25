@@ -49,6 +49,9 @@ clusters:
             # secret phone-auth-grafana (infrastructure-live tofu) as PHONE_GRAFANA_TOKEN, which Grafana expands in its
             # provisioning files (secureJsonData: stored encrypted, never shown). Tempo / Loki: the product's datasources
             # (components.tracing / logging) replaced by the same ones plus the header (a map key each: tempo.yaml, loki.yaml).
+            # image pins above the chart defaults (kube-prometheus-stack 92.17.0): fixed versions of known-exploited CVEs
+            image: { tag: 13.3.2-distroless }
+            sidecar: { image: { tag: 2.14.3 } }
             envValueFrom: { PHONE_GRAFANA_TOKEN: { secretKeyRef: { name: phone-auth-grafana, key: token } } }
             datasources:
               tempo.yaml:
