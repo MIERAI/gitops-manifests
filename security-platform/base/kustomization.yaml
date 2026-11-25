@@ -3,7 +3,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - https://github.com/MIERAI/security-platform//deploy/kubernetes?ref=54c24adaf1e25913a16d1a3773d75b04b822b47f
+  - https://github.com/MIERAI/security-platform//deploy/kubernetes?ref=65cd3b042e1151a3d1dfef90bdb6c8395a2c4d91
   - rules.yaml
 images:
-  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 54c24ad }
+  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 65cd3b0 }
