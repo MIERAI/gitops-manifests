@@ -10,8 +10,10 @@ clusters:
   laptop:                          # production: k3s on the always-on HP laptop (infrastructure-live tofu/laptop)
     role: prod
     runtime: k3s
-    # storefront v2 runs on the lab only (v2/app.yaml); security-platform: lab first, the laptop after the lab soak
-    applications: { exclude: [v2, security-platform] }
+    applications:
+      exclude: [v2]                            # storefront v2 runs on the lab only (v2/app.yaml)
+      environments:
+        security-platform: { exclude: [lab] }  # the laptop runs prod; the lab its own environment
     objectStorage: none            # the object store is SeaweedFS on the host: extras (platform-object-storage)
     extras: [{ name: laptop, path: clusters/laptop/extras }]
     components:
@@ -49,6 +51,9 @@ clusters:
             # secret phone-auth-grafana (infrastructure-live tofu) as PHONE_GRAFANA_TOKEN, which Grafana expands in its
             # provisioning files (secureJsonData: stored encrypted, never shown). Tempo / Loki: the product's datasources
             # (components.tracing / logging) replaced by the same ones plus the header (a map key each: tempo.yaml, loki.yaml).
+            # image pins above the chart defaults (kube-prometheus-stack 92.17.0): fixed versions of known-exploited CVEs
+            image: { tag: 13.3.2-distroless }
+            sidecar: { image: { tag: 2.14.3 } }
             envValueFrom: { PHONE_GRAFANA_TOKEN: { secretKeyRef: { name: phone-auth-grafana, key: token } } }
             datasources:
               tempo.yaml:

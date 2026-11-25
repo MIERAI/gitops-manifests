@@ -4,3 +4,25 @@ namespace: security-platform-prod
 resources:
   - ../../base
   - dashboard.yaml        # the laptop's Grafana picks it up (sidecar label grafana_dashboard)
+  - ../../hub             # the in-cluster hub (after the lab run)
+  - sites.yaml
+configMapGenerator:
+  - { name: security-platform-hub, files: [instance.json=hub.json] }
+generatorOptions: { disableNameSuffixHash: true }
+patches:
+  # cluster-scoped objects of the hub carry the environment in their name (the lab has its own on its cluster;
+  # unique names keep every rendered environment valid side by side)
+  - target: { kind: ClusterRole, name: security-platform-hub-read }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-hub-read-prod }
+  - target: { kind: ClusterRoleBinding, name: security-platform-hub-read }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-hub-read-prod }
+      - { op: replace, path: /roleRef/name, value: security-platform-hub-read-prod }
+  - target: { kind: ValidatingAdmissionPolicy, name: security-platform-inbox-identity }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-inbox-identity-prod }
+  - target: { kind: ValidatingAdmissionPolicyBinding, name: security-platform-inbox-identity }
+    patch: |
+      - { op: replace, path: /metadata/name, value: security-platform-inbox-identity-prod }
+      - { op: replace, path: /spec/policyName, value: security-platform-inbox-identity-prod }
