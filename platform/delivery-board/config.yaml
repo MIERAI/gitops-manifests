@@ -5,6 +5,7 @@ timezone: Asia/Tokyo
 # 2m, not 30s: at 30s the board alone made ~6,900 GitHub API calls an hour (measured 2026-11-25), over the account's
 # 5,000/h shared with every other tool of the same user, so everything got 403 for part of each hour.
 interval: 2m
+github: { reserve: 0.2 }       # pause refreshes below 20% of the hourly budget (left for other tools)
 maxRuns: 12
 
 pipelines:
