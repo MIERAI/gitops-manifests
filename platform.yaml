@@ -51,6 +51,8 @@ clusters:
             # secret phone-auth-grafana (infrastructure-live tofu) as PHONE_GRAFANA_TOKEN, which Grafana expands in its
             # provisioning files (secureJsonData: stored encrypted, never shown). Tempo / Loki: the product's datasources
             # (components.tracing / logging) replaced by the same ones plus the header (a map key each: tempo.yaml, loki.yaml).
+            # no calls home: update checks and usage reporting off (Falco saw them as unexpected outbound connections)
+            grafana.ini: { analytics: { check_for_updates: false, check_for_plugin_updates: false, reporting_enabled: false, feedback_links_enabled: false } }
             # image pins above the chart defaults (kube-prometheus-stack 92.17.0): fixed versions of known-exploited CVEs
             image: { tag: 13.3.2-distroless }
             sidecar: { image: { tag: 2.14.3 } }
