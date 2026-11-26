@@ -1,0 +1,17 @@
+# The metrics ConfigMap. Argo CD creates it once, with the ratio SLI's counters at 0 (an absent counter would be "SLI
+# absent", not zero errors); from then on the writer outside the cluster owns its data (app.yaml ignoreDifferences:
+# /data, with RespectIgnoreDifferences — a sync never puts the seed back). Created here rather than by the writer:
+# the writer may only update this one object (resourceNames), and Kubernetes cannot limit `create` by name.
+# Only aggregate numbers: no document text, no paths; target labels are opaque (t1, …).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docs-consistency-metrics
+data:
+  docs-consistency.prom: |
+    # HELP docs_consistency_claims_sampled_total Claims re-audited in the weekly samples (decided ones), cumulative.
+    # TYPE docs_consistency_claims_sampled_total counter
+    docs_consistency_claims_sampled_total{target="t1"} 0
+    # HELP docs_consistency_claims_inconsistent_total Sampled claims the re-audit found inconsistent with the code, cumulative.
+    # TYPE docs_consistency_claims_inconsistent_total counter
+    docs_consistency_claims_inconsistent_total{target="t1"} 0

@@ -1,0 +1,11 @@
+# The laptop's Grafana picks the dashboard up (sidecar label grafana_dashboard); the lab has no Grafana.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: docs-consistency-prod
+resources:
+  - ../../base
+configMapGenerator:
+  - name: docs-consistency-dashboard
+    files: [docs-consistency.json=dashboard.json]
+    options: { labels: { grafana_dashboard: "1" } }
+generatorOptions: { disableNameSuffixHash: true }
