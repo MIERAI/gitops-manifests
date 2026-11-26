@@ -1,0 +1,13 @@
+# Exporter (security-platform's image at the same pinned tag as ../../security-platform/base: its generic
+# serve-metrics), the metrics ConfigMap seed, and the writer's identity. Upgrade the image with security-platform's.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs: { app.kubernetes.io/part-of: docs-consistency }
+    includeSelectors: false
+resources:
+  - exporter.yaml
+  - metrics.yaml
+  - writer.yaml
+images:
+  - { name: security-platform, newName: ghcr.io/mierai/security-platform, newTag: 65cd3b0 }

@@ -1,0 +1,20 @@
+# The writer outside the cluster (the weekly job on the operator's workstation): a ServiceAccount whose only right is to
+# read and update the ConfigMap docs-consistency-metrics. Its token is minted by hand
+# (`kubectl create token --duration=2160h`, 90 days) and kept on the workstation; namespaced objects only, so the lab
+# and prod environments need no environment-specific names.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: docs-consistency-writer }
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: docs-consistency-writer }
+rules:
+  - { apiGroups: [""], resources: [configmaps], resourceNames: [docs-consistency-metrics], verbs: [get, update, patch] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: docs-consistency-writer }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: docs-consistency-writer }
+subjects: [{ kind: ServiceAccount, name: docs-consistency-writer }]

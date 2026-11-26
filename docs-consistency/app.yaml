@@ -1,0 +1,47 @@
+# docs-consistency: SLOs of a documentation-consistency check that runs weekly outside the cluster (on the operator's
+# workstation) and publishes only aggregate metrics — no document text, no paths — into the ConfigMap
+# docs-consistency-metrics (base/metrics.yaml), through a ServiceAccount that may update that one ConfigMap only
+# (base/writer.yaml). An exporter serves it to Prometheus, the same mechanism as security-platform (base/exporter.yaml).
+# Targets are opaque labels (target="t1", …); only targets whose ledger comes from a full audit feed these SLOs
+# (benchmark targets are never exported). Environments: lab on the lab cluster, prod on the laptop (platform.yaml
+# clusters.<name>.applications / environments); the dashboard is in overlays/prod (the lab has no Grafana).
+name: docs-consistency
+signedImages: true               # the exporter is security-platform's image, signed by the shared build workflow
+namespace: { labels: { gitops-platform/image-signatures: required } }
+environments:
+  - name: lab
+  - name: prod
+components:
+  - { name: docs-consistency, kustomize: overlays }   # overlays/<env>
+# The writer owns the ConfigMap's data after Argo CD created it with the counters at 0 (base/metrics.yaml).
+ignoreDifferences:
+  - { group: "", kind: ConfigMap, name: docs-consistency-metrics, jsonPointers: [/data] }
+# Burn alerts are silent (severity info), as for security-platform: the data arrive once a week, so a week's sample
+# lands in one scrape and the short burn windows see all of it at once; read the budget on the dashboard. An absent
+# SLI (the writer never published) is a ticket.
+slos:
+  - name: accuracy
+    objective: 80              # the owner's error budget is 20% of sampled claims; to be tightened later
+    severities: { fastBurn: info, mediumBurn: info, slowBurn: info, longTermBurn: info, absent: ticket }
+    description: Documented claims that still match the code, among the claims re-audited in the weekly random sample
+      (claims the re-audit could not decide are left out). Bad = a sampled claim found inconsistent.
+    ratio:
+      errors: { metric: docs_consistency_claims_inconsistent_total, matchers: 'target="t1"' }
+      total: { metric: docs_consistency_claims_sampled_total, matchers: 'target="t1"' }
+  - name: weekly-run-fresh
+    objective: 95
+    severities: { fastBurn: info, mediumBurn: info, slowBurn: info, longTermBurn: info, absent: ticket }
+    description: The weekly check completed and published a result within 8 days (it runs every Monday on a
+      workstation that may be asleep; one late day is tolerated, a missed week burns).
+    age:
+      metric: docs_consistency_last_good_run_timestamp_seconds
+      matchers: 'target="t1"'
+      max: 8d
+  - name: phantom-references
+    objective: 95
+    severities: { fastBurn: info, mediumBurn: info, slowBurn: info, longTermBurn: info, absent: ticket }
+    description: The share of references in the documents that point at nothing (unresolved files, symbols, commands)
+      stays within its target, as of the latest weekly run.
+    bool:
+      metric: docs_consistency_phantom_ok
+      matchers: 'target="t1"'

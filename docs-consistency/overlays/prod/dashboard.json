@@ -1,0 +1,1300 @@
+{
+ "uid": "docs-consistency",
+ "title": "Docs consistency",
+ "schemaVersion": 39,
+ "version": 1,
+ "tags": [
+  "docs-consistency",
+  "slo"
+ ],
+ "time": {
+  "from": "now-90d",
+  "to": "now"
+ },
+ "refresh": "5m",
+ "description": "Documentation-consistency SLIs: weekly sampled accuracy, run freshness, phantom references, error budgets, spend. Aggregates only.",
+ "templating": {
+  "list": [
+   {
+    "name": "datasource",
+    "type": "datasource",
+    "query": "prometheus",
+    "label": "Prometheus"
+   },
+   {
+    "name": "env",
+    "type": "query",
+    "label": "env",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${datasource}"
+    },
+    "query": {
+     "query": "label_values(docs_consistency_claims_sampled_total{namespace=~\"docs-consistency-.*\"}, namespace)",
+     "refId": "env"
+    },
+    "regex": "/docs-consistency-(.*)/",
+    "refresh": 2,
+    "includeAll": false,
+    "multi": false
+   },
+   {
+    "name": "target",
+    "type": "query",
+    "label": "target",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "${datasource}"
+    },
+    "query": {
+     "query": "label_values(docs_consistency_claims_sampled_total{namespace=\"docs-consistency-$env\"}, target)",
+     "refId": "target"
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "multi": false,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 2,
+   "type": "row",
+   "title": "SLIs (latest weekly run)",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Accuracy (weekly sample)",
+   "description": "Sampled claims that still match the code (undecided ones left out). Objective 80%.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_accuracy_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0.8
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Accuracy 95% interval (Wilson)",
+   "description": "Wilson score interval of the weekly sample's accuracy: small samples are uncertain.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_accuracy_wilson_low_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "low",
+     "instant": true
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_accuracy_wilson_high_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "high",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Claims sampled / inconsistent (week)",
+   "description": "Decided claims in the latest weekly sample, and how many of them were inconsistent.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_weekly_claims_sampled{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "sampled",
+     "instant": true
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_weekly_claims_inconsistent{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "inconsistent",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "Freshness",
+   "description": "Claims verified recently enough (the tool's freshness SLI). Target 95%.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_freshness_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0.95
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 7,
+   "type": "stat",
+   "title": "Phantom reference rate",
+   "description": "References that point at nothing, among all references. The SLO is phantom_ok = rate <= its target (docs_consistency_objective_ratio{sli=\"phantom_rate\"}).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_phantom_rate_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 8,
+   "type": "stat",
+   "title": "Days since last good weekly run",
+   "description": "SLO weekly-run-fresh: at most 8 days.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "(time() - max(docs_consistency_last_good_run_timestamp_seconds{namespace=\"docs-consistency-$env\", target=~\"$target\"})) / 86400",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 8
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 9,
+   "type": "row",
+   "title": "Error budget (Pyrra, 28d window)",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 10,
+   "type": "stat",
+   "title": "Budget left: accuracy",
+   "description": "Share of the accuracy SLO's error budget left over the window (Pyrra's availability and objective).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 6,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 11,
+   "type": "stat",
+   "title": "Budget left: weekly-run-fresh",
+   "description": "Share of the weekly-run-fresh SLO's error budget left over the window (Pyrra's availability and objective).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 6,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 12,
+   "type": "stat",
+   "title": "Budget left: phantom-references",
+   "description": "Share of the phantom-references SLO's error budget left over the window (Pyrra's availability and objective).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 6,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 13,
+   "type": "stat",
+   "title": "Tool's own error budget left (accuracy)",
+   "description": "The weekly run's own budget figure (20% of sampled claims allowed); negative = overspent: the tool schedules full re-audits.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 6,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_error_budget_remaining_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 0
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 14,
+   "type": "stat",
+   "title": "Last publish",
+   "description": "When the workstation last published these metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 6,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_last_publish_timestamp_seconds{namespace=\"docs-consistency-$env\", target=~\"$target\"}) * 1000",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "dateTimeFromNow",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "Error budget left over time",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 10,
+    "w": 24,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-accuracy\"})",
+     "legendFormat": "accuracy"
+    },
+    {
+     "refId": "B",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-weekly-run-fresh\"})",
+     "legendFormat": "weekly-run-fresh"
+    },
+    {
+     "refId": "C",
+     "expr": "(pyrra_availability{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"} - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"}) / (1 - pyrra_objective{app=\"docs-consistency\", env=\"$env\", slo=\"docs-consistency-phantom-references\"})",
+     "legendFormat": "phantom-references"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 16,
+   "type": "row",
+   "title": "Trend over weeks",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 17,
+   "type": "timeseries",
+   "title": "Accuracy per week (with 95% interval and objective)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_accuracy_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "accuracy"
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_accuracy_wilson_low_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "low"
+    },
+    {
+     "refId": "C",
+     "expr": "max(docs_consistency_accuracy_wilson_high_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "high"
+    },
+    {
+     "refId": "D",
+     "expr": "max(docs_consistency_objective_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\", sli=\"accuracy\"})",
+     "legendFormat": "objective"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0,
+     "max": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 18,
+   "type": "timeseries",
+   "title": "Freshness and phantom reference rate",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 18,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_freshness_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "freshness"
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_phantom_rate_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "phantom rate"
+    },
+    {
+     "refId": "C",
+     "expr": "max(docs_consistency_objective_ratio{namespace=\"docs-consistency-$env\", target=~\"$target\", sli=\"phantom_rate\"})",
+     "legendFormat": "phantom target"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 19,
+   "type": "timeseries",
+   "title": "Claims sampled and inconsistent per 7 days (SLI counters)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(increase(docs_consistency_claims_sampled_total{namespace=\"docs-consistency-$env\", target=~\"$target\"}[7d]))",
+     "legendFormat": "sampled"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(increase(docs_consistency_claims_inconsistent_total{namespace=\"docs-consistency-$env\", target=~\"$target\"}[7d]))",
+     "legendFormat": "inconsistent"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 20,
+   "type": "timeseries",
+   "title": "Claims in the ledger and stale claims at the last commit",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 26,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_ledger_claims{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "claims in ledger"
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_stale_claims{namespace=\"docs-consistency-$env\", target=~\"$target\"})",
+     "legendFormat": "stale at last commit"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 21,
+   "type": "row",
+   "title": "Spend",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 34,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 22,
+   "type": "stat",
+   "title": "Spend this week",
+   "description": "Model spend of the current ISO week (all runs, benchmark ones included), as of the last publish.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 35,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_week_spend_usd{namespace=\"docs-consistency-$env\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 23,
+   "type": "stat",
+   "title": "Weekly cap",
+   "description": "Hard cap of the weekly run.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 35,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_week_spend_cap_usd{namespace=\"docs-consistency-$env\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 24,
+   "type": "stat",
+   "title": "Spend since tracking began",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 35,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_spend_usd_total{namespace=\"docs-consistency-$env\"})",
+     "legendFormat": "__auto",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "text",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     },
+     "noValue": "no data",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "auto",
+    "justifyMode": "auto"
+   }
+  },
+  {
+   "id": 25,
+   "type": "timeseries",
+   "title": "Spend per week",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 39,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(docs_consistency_week_spend_usd{namespace=\"docs-consistency-$env\"})",
+     "legendFormat": "this week (as published)"
+    },
+    {
+     "refId": "B",
+     "expr": "max(docs_consistency_week_spend_cap_usd{namespace=\"docs-consistency-$env\"})",
+     "legendFormat": "cap"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineInterpolation": "stepAfter"
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  }
+ ]
+}
