@@ -1,0 +1,10 @@
+# The Ghost Stock game page's Grafana dashboard (Grafana's sidecar loads ConfigMaps labelled grafana_dashboard from
+# every namespace). Its probe and SLO: platform/slo/external/ghost-stock.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ghost-stock
+configMapGenerator:
+  - name: ghost-stock-dashboard
+    files: [ghost-stock.json=dashboard.json]
+    options: { labels: { grafana_dashboard: "1" } }
+generatorOptions: { disableNameSuffixHash: true }
