@@ -1,8 +1,9 @@
-# The Ghost Stock game page's Grafana dashboard (Grafana's sidecar loads ConfigMaps labelled grafana_dashboard from
+# The Ghost Stock game page: play statistics (collector.yaml: the macbook collector, scraped) and the Grafana dashboard (Grafana's sidecar loads ConfigMaps labelled grafana_dashboard from
 # every namespace). Its probe and SLO: platform/slo/external/ghost-stock.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: ghost-stock
+resources: [collector.yaml]
 configMapGenerator:
   - name: ghost-stock-dashboard
     files: [ghost-stock.json=dashboard.json]
