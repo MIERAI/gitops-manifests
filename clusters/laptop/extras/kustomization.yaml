@@ -15,6 +15,7 @@ resources:
   - platform-offsite-backup-slo.yaml
   - platform-external-probe-storefront.yaml
   - platform-external-probe-sample-app.yaml
+  - platform-external-probe-ghost-stock.yaml   # the game page on GitHub Pages (probe, SLO, dashboard)
   - platform-ui.yaml
   - platform-kyverno.yaml
   - platform-policies.yaml

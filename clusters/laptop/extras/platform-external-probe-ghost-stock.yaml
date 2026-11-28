@@ -1,0 +1,44 @@
+# laptop only: the Ghost Stock game page on GitHub Pages as players reach it (values: platform/slo/external/ghost-stock.yaml;
+# the prober is winpc's blackbox) and its Grafana dashboard (platform/ghost-stock), in their own namespace (no workloads)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-external-probe-ghost-stock
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/slo
+    helm:
+      releaseName: ghost-stock-external-probe
+      valueFiles: [external/ghost-stock.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ghost-stock
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    managedNamespaceMetadata: { labels: { slo-platform/app: ghost-stock, slo-platform/env: prod } }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-ghost-stock-dashboard
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MIERAI/gitops-manifests.git
+    targetRevision: main
+    path: platform/ghost-stock
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ghost-stock
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    managedNamespaceMetadata: { labels: { slo-platform/app: ghost-stock, slo-platform/env: prod } }
+    retry: { limit: 5, backoff: { duration: 10s, factor: 2, maxDuration: 3m } }

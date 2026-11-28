@@ -1,0 +1,15 @@
+# Values of the platform's SLO chart (platform/slo): the Ghost Stock game page (a static file on GitHub Pages,
+# https://mierai.github.io/ghost-stock/, published from the private source repo) as a player reaches it over the
+# public internet — probed from winpc's blackbox_exporter (a Windows task: ENVIRONMENTS.md), so it measures a home
+# connection in Japan, not GitHub's own status. Laptop only (clusters/laptop/extras/platform-external-probe-ghost-stock.yaml),
+# into namespace ghost-stock. Dashboard: platform/ghost-stock ("Ghost Stock · game page" in Grafana).
+# Tickets only: nothing here is ours to fix at night (GitHub Pages / the internet path); winpc down = "SLI absent".
+app: ghost-stock
+env: prod
+slos:
+  - name: pages-external-probe
+    description: The game page answered 2xx within 5s over HTTPS when called from winpc across the public internet
+      (what a player gets). Burns when GitHub Pages, DNS, TLS or the path to it fails.
+    objective: 99
+    severities: { fastBurn: ticket, mediumBurn: ticket }
+    probe: { url: "https://mierai.github.io/ghost-stock/", prober: "100.106.140.35:9115", interval: 60s }
