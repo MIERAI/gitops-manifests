@@ -1,8 +1,8 @@
 {
  "uid": "ghost-stock",
- "title": "Ghost Stock · game page",
+ "title": "Ghost Stock · 访问监控",
  "schemaVersion": 39,
- "version": 1,
+ "version": 2,
  "tags": [
   "ghost-stock",
   "slo",
@@ -13,10 +13,10 @@
   "to": "now"
  },
  "refresh": "1m",
- "description": "https://mierai.github.io/ghost-stock/ probed every 60s from winpc (home connection, Japan) by blackbox_exporter. SLO: platform/slo/external/ghost-stock.yaml.",
+ "description": "游戏 https://mierai.github.io/ghost-stock/ 的访问、游玩和可用性。访问/游玩:游戏页面发匿名统计到 macbook 的收集端(ghost-stock 仓库 ops/beacon);可用性:winpc 的 blackbox 每 60 秒探测。",
  "links": [
   {
-   "title": "Open the game",
+   "title": "打开游戏",
    "type": "link",
    "url": "https://mierai.github.io/ghost-stock/",
    "targetBlank": true
@@ -35,16 +35,891 @@
  "panels": [
   {
    "id": 1,
+   "type": "row",
+   "title": "访问",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 2,
    "type": "stat",
-   "title": "Now",
-   "description": "Last probe from winpc (every 60s): page answered 2xx over HTTPS within 5s.",
+   "title": "累计访问",
+   "description": "打开游戏页面的次数(每次打开算一次)。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 0,
-    "y": 0,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_events_total{event=\"view\"})",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "独立访客",
+   "description": "不同的访客数(浏览器里随机生成的匿名 ID;清缓存或换设备会算新访客)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "max(ghoststock_unique_visitors)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "今日访客",
+   "description": "今天(日本时间)来过的不同访客数。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "max(ghoststock_visitors_today)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "覆盖国家数",
+   "description": "访客所在国家/地区数(按浏览器时区推断,不看 IP)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "count(sum by (country) (ghoststock_page_views_by_country_total{country!~\"\\\\?\\\\?|other\"}) > 0)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 6,
+   "type": "stat",
+   "title": "开局率",
+   "description": "打开页面后点了「开始」的比例(一次访问可能开多局,可超过 100%)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_events_total{event=\"start\"}) / sum(ghoststock_events_total{event=\"view\"})",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     },
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 7,
+   "type": "stat",
+   "title": "错误/被拒请求",
+   "description": "收集端拒收的统计请求(格式不对、超频)。持续增长 = 有人在刷。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 1,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_beacons_rejected_total) or vector(0)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "thresholds",
+      "fixedColor": "text"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 50
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "访问量趋势(每小时新增)",
+   "description": "每小时新增的访问、开局、打完一局的次数。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 16,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(ghoststock_events_total{event=\"view\"}[1h]))",
+     "legendFormat": "访问",
+     "interval": ""
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(ghoststock_events_total{event=\"start\"}[1h]))",
+     "legendFormat": "开局",
+     "interval": ""
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(increase(ghoststock_events_total{event=\"end\"}[1h]))",
+     "legendFormat": "打完",
+     "interval": ""
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "min": 0,
+     "decimals": 0,
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "spanNulls": true
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": true,
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 9,
+   "type": "piechart",
+   "title": "访客来自哪些国家",
+   "description": "按浏览器时区推断的国家/地区代码(JP 日本、CN 中国、?? = 未知)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 5,
+    "w": 8,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (country) (ghoststock_page_views_by_country_total)",
+     "legendFormat": "{{country}}",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {
+    "pieType": "donut",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "legend": {
+     "showLegend": true,
+     "displayMode": "table",
+     "placement": "right",
+     "values": [
+      "value",
+      "percent"
+     ]
+    },
+    "displayLabels": []
+   }
+  },
+  {
+   "id": 10,
+   "type": "bargauge",
+   "title": "来源网站",
+   "description": "访客从哪个网站点进来(direct = 直接打开链接/书签/聊天软件内打开)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 10,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "topk(8, sum by (referrer) (ghoststock_page_views_by_referrer_total))",
+     "legendFormat": "{{referrer}}",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "blue"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "basic",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "valueMode": "text"
+   }
+  },
+  {
+   "id": 11,
+   "type": "piechart",
+   "title": "设备",
+   "description": "mobile = 触屏或窄屏;desktop = 其他。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 10,
+    "y": 13,
+    "w": 7,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (device) (ghoststock_page_views_by_device_total)",
+     "legendFormat": "{{device}}",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {
+    "pieType": "donut",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "legend": {
+     "showLegend": true,
+     "displayMode": "list",
+     "placement": "bottom",
+     "values": [
+      "percent"
+     ]
+    }
+   }
+  },
+  {
+   "id": 12,
+   "type": "piechart",
+   "title": "游戏语言",
+   "description": "打开时的游戏语言(zh 中文 / ja 日文)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 17,
+    "y": 13,
+    "w": 7,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (lang) (ghoststock_page_views_by_lang_total)",
+     "legendFormat": "{{lang}}",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   },
+   "options": {
+    "pieType": "donut",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "legend": {
+     "showLegend": true,
+     "displayMode": "list",
+     "placement": "bottom",
+     "values": [
+      "percent"
+     ]
+    }
+   }
+  },
+  {
+   "id": 13,
+   "type": "row",
+   "title": "游玩",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 14,
+   "type": "bargauge",
+   "title": "玩到第几天(漏斗)",
+   "description": "结束过第 N 天的次数。从第 1 天到第 7 天掉得越多,说明越多人中途放弃。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 9,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum by (day) (ghoststock_days_completed_total)",
+     "legendFormat": "第 {{day}} 天",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "blue"
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "basic",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "valueMode": "text"
+   }
+  },
+  {
+   "id": 15,
+   "type": "bargauge",
+   "title": "评级分布(目标 S5% · A10% · B20% · C60% · D5%)",
+   "description": "真实玩家打完一局拿到的评级占比。评分线按机器人模拟定的;真实分布偏离目标太多时再调评分线(game.json rating)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 9,
+    "y": 21,
+    "w": 9,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total{rating=\"S\"}) / scalar(sum(ghoststock_games_finished_total))",
+     "legendFormat": "S",
+     "instant": true,
+     "range": false
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total{rating=\"A\"}) / scalar(sum(ghoststock_games_finished_total))",
+     "legendFormat": "A",
+     "instant": true,
+     "range": false
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total{rating=\"B\"}) / scalar(sum(ghoststock_games_finished_total))",
+     "legendFormat": "B",
+     "instant": true,
+     "range": false
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total{rating=\"C\"}) / scalar(sum(ghoststock_games_finished_total))",
+     "legendFormat": "C",
+     "instant": true,
+     "range": false
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total{rating=\"D\"}) / scalar(sum(ghoststock_games_finished_total))",
+     "legendFormat": "D",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "decimals": 0,
+     "min": 0,
+     "max": 1,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "purple"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "basic",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "valueMode": "text"
+   }
+  },
+  {
+   "id": 16,
+   "type": "stat",
+   "title": "打完的局数",
+   "description": "进入结算页的局数(含满意度过低提前结束的)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 21,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_games_finished_total) or vector(0)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value",
+    "justifyMode": "center"
+   }
+  },
+  {
+   "id": 17,
+   "type": "stat",
+   "title": "平均总分",
+   "description": "打完的局的平均总分(利润 + 口碑)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 25,
+    "w": 6,
+    "h": 5
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${datasource}"
+     },
+     "expr": "sum(ghoststock_final_score_yen_sum) / sum(ghoststock_final_score_yen_count)",
+     "legendFormat": "",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyJPY",
+     "decimals": 0,
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "text"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   }
+  },
+  {
+   "id": 18,
+   "type": "row",
+   "title": "可用性(winpc 每 60 秒探测一次 GitHub Pages)",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "id": 19,
+   "type": "stat",
+   "title": "现在",
+   "description": "最近一次探测:5 秒内拿到 2xx。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${datasource}"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -57,14 +932,16 @@
      },
      "expr": "max(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"})",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "none",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -84,11 +961,11 @@
        "type": "value",
        "options": {
         "0": {
-         "text": "Down",
+         "text": "打不开",
          "color": "red"
         },
         "1": {
-         "text": "Up",
+         "text": "正常",
          "color": "green"
         }
        }
@@ -105,21 +982,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 2,
+   "id": 20,
    "type": "stat",
-   "title": "Availability · 24h",
-   "description": "Share of good probes in the last 24 hours.",
+   "title": "可用率 · 24 小时",
+   "description": "过去 24 小时成功探测的比例。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 4,
-    "y": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -132,14 +1010,16 @@
      },
      "expr": "avg(avg_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[24h]))",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "percentunit",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -170,21 +1050,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 3,
+   "id": 21,
    "type": "stat",
-   "title": "Availability · 28d",
-   "description": "Share of good probes over the SLO window (28 days). Objective 99%.",
+   "title": "可用率 · 28 天",
+   "description": "SLO 窗口(28 天)的可用率,目标 99%。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 8,
-    "y": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -197,14 +1078,16 @@
      },
      "expr": "avg(avg_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[28d]))",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "percentunit",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -231,21 +1114,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 4,
+   "id": 22,
    "type": "stat",
-   "title": "Error budget left · 28d",
-   "description": "Objective 99% allows 1% bad probes (~6.7 h per 28 days). 100% = untouched, ≤0 = spent.",
+   "title": "错误预算剩余",
+   "description": "99% 目标允许 28 天里约 6.7 小时打不开。100% = 没用,≤0 = 用完。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 12,
-    "y": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -258,14 +1142,16 @@
      },
      "expr": "1 - (1 - avg(avg_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[28d]))) / (1 - 0.99)",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "percentunit",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -296,21 +1182,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 5,
+   "id": 23,
    "type": "stat",
-   "title": "Load time · median 1h",
-   "description": "Median full probe time (DNS + connect + TLS + response) from winpc, last hour.",
+   "title": "加载耗时 · 1 小时中位数",
+   "description": "从 winpc(日本家庭网络)完整加载一次的时间:DNS + 连接 + TLS + 响应。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 16,
-    "y": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -323,14 +1210,16 @@
      },
      "expr": "max(quantile_over_time(0.5, probe_duration_seconds{slo_probe=\"ghost-stock-pages-external-probe\"}[1h]))",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "s",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -361,21 +1250,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 6,
+   "id": 24,
    "type": "stat",
-   "title": "TLS certificate expires in",
-   "description": "Days until the HTTPS certificate GitHub serves expires (GitHub renews it).",
+   "title": "证书剩余天数",
+   "description": "GitHub 提供的 HTTPS 证书还有几天到期(GitHub 会自动续)。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 20,
-    "y": 0,
+    "y": 31,
     "w": 4,
     "h": 4
    },
@@ -388,14 +1278,16 @@
      },
      "expr": "(min(probe_ssl_earliest_cert_expiry{slo_probe=\"ghost-stock-pages-external-probe\"}) - time()) / 86400",
      "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false
     }
    ],
    "fieldConfig": {
     "defaults": {
      "unit": "d",
      "color": {
-      "mode": "thresholds"
+      "mode": "thresholds",
+      "fixedColor": "text"
      },
      "thresholds": {
       "mode": "absolute",
@@ -426,21 +1318,22 @@
     },
     "colorMode": "value",
     "graphMode": "none",
-    "textMode": "value"
+    "textMode": "value",
+    "justifyMode": "center"
    }
   },
   {
-   "id": 7,
+   "id": 25,
    "type": "timeseries",
-   "title": "Availability (hourly)",
-   "description": "Share of good probes per hour. Dashed line: the 99% objective.",
+   "title": "可用率(每小时)",
+   "description": "每小时成功探测的比例,虚线 = 99% 目标。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 0,
-    "y": 4,
+    "y": 35,
     "w": 12,
     "h": 8
    },
@@ -452,7 +1345,8 @@
       "uid": "${datasource}"
      },
      "expr": "avg(avg_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[1h]))",
-     "legendFormat": "availability"
+     "legendFormat": "可用率",
+     "interval": ""
     }
    ],
    "fieldConfig": {
@@ -463,7 +1357,7 @@
      "decimals": 1,
      "color": {
       "mode": "fixed",
-      "fixedColor": "blue"
+      "fixedColor": "green"
      },
      "custom": {
       "lineWidth": 2,
@@ -498,17 +1392,17 @@
    }
   },
   {
-   "id": 8,
+   "id": 26,
    "type": "timeseries",
-   "title": "Load time by phase",
-   "description": "Where the time goes on each probe: DNS resolve, TCP connect, TLS handshake, waiting for the server, transfer. Stacked = total.",
+   "title": "加载耗时分段",
+   "description": "每次探测的时间花在哪:resolve DNS / connect 连接 / tls 握手 / processing 等服务器 / transfer 传输。堆叠 = 总耗时。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 12,
-    "y": 4,
+    "y": 35,
     "w": 12,
     "h": 8
    },
@@ -544,23 +1438,22 @@
      "placement": "bottom"
     },
     "tooltip": {
-     "mode": "multi",
-     "sort": "none"
+     "mode": "multi"
     }
    }
   },
   {
-   "id": 9,
+   "id": 27,
    "type": "timeseries",
-   "title": "Failed probes per hour",
-   "description": "Probes that did not get a 2xx within 5s, counted per hour (60 probes per hour). Any bar = players may have seen \"site can't be reached\".",
+   "title": "每小时失败探测次数",
+   "description": "每小时没在 5 秒内拿到 2xx 的探测次数(每小时 60 次)。有柱子 = 那段时间玩家可能看到「无法访问此网站」。",
    "datasource": {
     "type": "prometheus",
     "uid": "${datasource}"
    },
    "gridPos": {
     "x": 0,
-    "y": 12,
+    "y": 43,
     "w": 24,
     "h": 6
    },
@@ -572,7 +1465,7 @@
       "uid": "${datasource}"
      },
      "expr": "sum(count_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[1h]) - sum_over_time(probe_success{slo_probe=\"ghost-stock-pages-external-probe\"}[1h]))",
-     "legendFormat": "failed",
+     "legendFormat": "失败",
      "interval": "1h"
     }
    ],
